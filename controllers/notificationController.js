@@ -1,89 +1,66 @@
 const Notification = require("../models/Notification");
+const catchAsync = require("../utils/catchAsync");
+const AppError = require("../utils/AppError");
+const apiResponse = require("../utils/apiResponse");
 
-exports.getNotifications = async (req, res) => {
-  try {
+exports.getNotifications = catchAsync(async (req, res) => {
+  const notifications = await Notification.find({
+    recipient: req.user.id
+  })
+  .populate("sender", "username profilePicture")
+  .sort({ createdAt: -1 });
 
-    const notifications = await Notification.find({
-      recipient: req.user.id
-    })
-    .populate("sender", "username profilePicture")
-    .sort({ createdAt: -1 });
-
-    res.json(notifications);
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+  res.json(apiResponse.success(notifications));
+});
 
 
-exports.markAsRead = async (req, res) => {
-  try {
+exports.markAsRead = catchAsync(async (req, res, next) => {
+  const notification = await Notification.findById(req.params.id);
 
-    const notification = await Notification.findByIdAndUpdate(
-      req.params.id,
-      { isRead: true },
-      { new: true }
-    );
+  if (!notification)
+    return next(new AppError("Notification not found", 404, "NOT_FOUND"));
 
-    res.json(notification);
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-
-exports.markAllRead = async (req, res) => {
-  try {
-
-    await Notification.updateMany(
-      { recipient: req.user.id },
-      { isRead: true }
-    );
-
-    res.json({ message: "All notifications marked as read" });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-
-
-exports.deleteNotification = async (req, res) => {
-
-  try {
-
-    const notification = await Notification.findById(req.params.id);
-
-    if (!notification)
-      return res.status(404).json({ message: "Notification not found" });
-
-    if (notification.recipient.toString() !== req.user.id)
-      return res.status(403).json({ message: "Unauthorized" });
-
-    await notification.deleteOne();
-
-    res.json({ message: "Notification deleted successfully" });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  if (notification.recipient.toString() !== req.user.id) {
+    return next(new AppError("Not authorized", 403, "FORBIDDEN"));
   }
 
-};
+  notification.isRead = true;
+  await notification.save();
 
-exports.getUnreadCount = async (req, res) => {
-  try {
+  res.json(apiResponse.success(notification));
+});
 
-    const count = await Notification.countDocuments({
-      recipient: req.user.id,
-      isRead: false
-    });
 
-    res.json({ unread: count });
+exports.markAllRead = catchAsync(async (req, res) => {
+  await Notification.updateMany(
+    { recipient: req.user.id },
+    { isRead: true }
+  );
 
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+  res.json(apiResponse.success(null, "All notifications marked as read"));
+});
+
+
+exports.deleteNotification = catchAsync(async (req, res, next) => {
+  const notification = await Notification.findById(req.params.id);
+
+  if (!notification)
+    return next(new AppError("Notification not found", 404, "NOT_FOUND"));
+
+  if (notification.recipient.toString() !== req.user.id)
+    return next(new AppError("Not authorized", 403, "FORBIDDEN"));
+
+  await notification.deleteOne();
+
+  res.json(apiResponse.success(null, "Notification deleted successfully"));
+});
+
+
+exports.getUnreadCount = catchAsync(async (req, res) => {
+  const count = await Notification.countDocuments({
+    recipient: req.user.id,
+    isRead: false
+  });
+
+  res.json(apiResponse.success({ unread: count }));
+});

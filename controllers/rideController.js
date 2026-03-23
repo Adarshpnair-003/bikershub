@@ -3,392 +3,345 @@ const Notification = require("../models/Notification");
 const Conversation = require("../models/Conversation");
 const haversineDistance = require("../utils/distance");
 const geocodeAddress = require("../utils/geocode");
+const catchAsync = require("../utils/catchAsync");
+const AppError = require("../utils/AppError");
+const apiResponse = require("../utils/apiResponse");
 
 /*
 CREATE RIDE
 */
-exports.createRide = async (req, res) => {
-  try {
-    const {
-      title,
-      description,
-      startLocation,
-      destination,
-      rideDate,
-      maxParticipants
-    } = req.body;
+exports.createRide = catchAsync(async (req, res, next) => {
+  const {
+    title,
+    description,
+    startLocation,
+    destination,
+    rideDate,
+    maxParticipants
+  } = req.body;
 
-    if (!title || !startLocation || !destination || !rideDate) {
-      return res.status(400).json({
-        msg: "All required fields missing"
-      });
-    }
-
-    const startCoords = await geocodeAddress(startLocation);
-    const destinationCoords = await geocodeAddress(destination);
-
-    if (startCoords.coordinates[0] === 0 && startCoords.coordinates[1] === 0) {
-      return res.status(400).json({ msg: "Invalid start location" });
-    }
-
-    if (destinationCoords.coordinates[0] === 0 && destinationCoords.coordinates[1] === 0) {
-      return res.status(400).json({ msg: "Invalid destination" });
-    }
-
-    const ride = await Ride.create({
-      title,
-      description,
-      startLocation,
-      startCoords,
-      destination,
-      destinationCoords,
-      rideDate,
-      maxParticipants,
-      createdBy: req.user.id,
-      participants: [req.user.id],
-      participantsCount: 1
-    });
-
-    await Conversation.create({
-      type: "ride",
-      ride: ride._id,
-      participants: [req.user.id]
-    });
-
-    res.status(201).json({ success: true, ride });
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to create ride" });
+  if (!title || !startLocation || !destination || !rideDate) {
+    return next(new AppError("All required fields missing", 400, "VALIDATION_ERROR"));
   }
-};
+
+  const startCoords = await geocodeAddress(startLocation);
+  const destinationCoords = await geocodeAddress(destination);
+
+  if (startCoords.coordinates[0] === 0 && startCoords.coordinates[1] === 0) {
+    return next(new AppError("Invalid start location", 400, "INVALID_LOCATION"));
+  }
+
+  if (destinationCoords.coordinates[0] === 0 && destinationCoords.coordinates[1] === 0) {
+    return next(new AppError("Invalid destination", 400, "INVALID_LOCATION"));
+  }
+
+  const ride = await Ride.create({
+    title,
+    description,
+    startLocation,
+    startCoords,
+    destination,
+    destinationCoords,
+    rideDate,
+    maxParticipants,
+    createdBy: req.user.id,
+    participants: [req.user.id],
+    participantsCount: 1
+  });
+
+  await Conversation.create({
+    type: "ride",
+    ride: ride._id,
+    participants: [req.user.id]
+  });
+
+  res.status(201).json(apiResponse.success(ride, "Ride created"));
+});
 
 /*
-GET ALL RIDES ✅ (FIXED)
+GET ALL RIDES
 */
-exports.getRides = async (req, res) => {
-  try {
-    const rides = await Ride.find()
-      .populate("createdBy", "username")
-      .sort({ rideDate: 1 });
+exports.getRides = catchAsync(async (req, res) => {
+  const rides = await Ride.find()
+    .populate("createdBy", "username")
+    .sort({ rideDate: 1 });
 
-    res.json(rides);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
+  res.json(apiResponse.success(rides));
+});
 
 /*
 GET SINGLE RIDE
 */
-exports.getRide = async (req, res) => {
-  try {
-    const ride = await Ride.findById(req.params.rideId)
-      .populate("createdBy", "username")
-      .populate("participants", "username");
+exports.getRide = catchAsync(async (req, res, next) => {
+  const ride = await Ride.findById(req.params.rideId)
+    .populate("createdBy", "username")
+    .populate("participants", "username");
 
-    if (!ride) return res.status(404).json({ msg: "Ride not found" });
+  if (!ride) return next(new AppError("Ride not found", 404, "NOT_FOUND"));
 
-    res.json(ride);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
+  res.json(apiResponse.success(ride));
+});
 
 /*
 UPDATE RIDE
 */
-exports.updateRide = async (req, res) => {
-  try {
-    const ride = await Ride.findById(req.params.rideId);
+exports.updateRide = catchAsync(async (req, res, next) => {
+  const ride = await Ride.findById(req.params.rideId);
 
-    if (!ride) return res.status(404).json({ msg: "Ride not found" });
+  if (!ride) return next(new AppError("Ride not found", 404, "NOT_FOUND"));
 
-    if (ride.createdBy.toString() !== req.user.id)
-      return res.status(403).json({ msg: "Unauthorized" });
+  if (ride.createdBy.toString() !== req.user.id)
+    return next(new AppError("Not authorized", 403, "FORBIDDEN"));
 
-    Object.assign(ride, req.body);
-    await ride.save();
+  // Explicit field picks — no mass assignment
+  const { title, description, startLocation, destination, rideDate, maxParticipants } = req.body;
+  if (title !== undefined) ride.title = title;
+  if (description !== undefined) ride.description = description;
+  if (startLocation !== undefined) ride.startLocation = startLocation;
+  if (destination !== undefined) ride.destination = destination;
+  if (rideDate !== undefined) ride.rideDate = rideDate;
+  if (maxParticipants !== undefined) ride.maxParticipants = maxParticipants;
 
-    res.json(ride);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
+  await ride.save();
+
+  res.json(apiResponse.success(ride, "Ride updated"));
+});
 
 /*
 JOIN RIDE
 */
-exports.joinRide = async (req, res) => {
-  try {
-    const ride = await Ride.findById(req.params.rideId);
+exports.joinRide = catchAsync(async (req, res, next) => {
+  const ride = await Ride.findById(req.params.rideId);
 
-    if (!ride) return res.status(404).json({ msg: "Ride not found" });
+  if (!ride) return next(new AppError("Ride not found", 404, "NOT_FOUND"));
 
-    if (ride.participants.includes(req.user.id))
-      return res.status(400).json({ msg: "Already joined ride" });
+  if (ride.participants.map(p => p.toString()).includes(req.user.id))
+    return next(new AppError("Already joined ride", 400, "ALREADY_JOINED"));
 
-    if (ride.participants.length >= ride.maxParticipants)
-      return res.status(400).json({ msg: "Ride is full" });
+  if (ride.participants.length >= ride.maxParticipants)
+    return next(new AppError("Ride is full", 400, "RIDE_FULL"));
 
-    ride.participants.push(req.user.id);
-    ride.participantsCount += 1;
+  ride.participants.push(req.user.id);
+  ride.participantsCount += 1;
 
-    await ride.save();
+  await ride.save();
 
-    if (ride.createdBy.toString() !== req.user.id) {
-      await Notification.create({
-        recipient: ride.createdBy,
-        sender: req.user.id,
-        type: "ride_join",
-        ride: ride._id
-      });
-    }
-
-    res.json({ msg: "Joined ride successfully" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  if (ride.createdBy.toString() !== req.user.id) {
+    await Notification.create({
+      recipient: ride.createdBy,
+      sender: req.user.id,
+      type: "ride_join",
+      ride: ride._id
+    });
   }
-};
+
+  res.json(apiResponse.success(null, "Joined ride successfully"));
+});
 
 /*
 LEAVE RIDE
 */
-exports.leaveRide = async (req, res) => {
-  try {
-    const ride = await Ride.findById(req.params.rideId);
+exports.leaveRide = catchAsync(async (req, res, next) => {
+  const ride = await Ride.findById(req.params.rideId);
 
-    if (!ride) return res.status(404).json({ msg: "Ride not found" });
+  if (!ride) return next(new AppError("Ride not found", 404, "NOT_FOUND"));
 
-    if (ride.createdBy.toString() === req.user.id)
-      return res.status(400).json({ msg: "Creator cannot leave ride" });
+  if (ride.createdBy.toString() === req.user.id)
+    return next(new AppError("Creator cannot leave ride", 400, "CREATOR_CANNOT_LEAVE"));
 
-    ride.participants = ride.participants.filter(
-      id => id.toString() !== req.user.id
-    );
+  ride.participants = ride.participants.filter(
+    id => id.toString() !== req.user.id
+  );
 
-    ride.participantsCount -= 1;
+  ride.participantsCount -= 1;
 
-    await ride.save();
+  await ride.save();
 
-    res.json({ msg: "Left ride successfully" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
+  res.json(apiResponse.success(null, "Left ride successfully"));
+});
 
 /*
 GET LIVE LOCATIONS
 */
-exports.getRideLocations = async (req, res) => {
-  try {
-    const ride = await Ride.findById(req.params.rideId)
-      .populate("riderLocations.user", "username");
+exports.getRideLocations = catchAsync(async (req, res, next) => {
+  const ride = await Ride.findById(req.params.rideId)
+    .populate("riderLocations.user", "username");
 
-    if (!ride) return res.status(404).json({ msg: "Ride not found" });
+  if (!ride) return next(new AppError("Ride not found", 404, "NOT_FOUND"));
 
-    res.json(ride.riderLocations);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
+  res.json(apiResponse.success(ride.riderLocations));
+});
 
 /*
 START RIDE
 */
-exports.startRide = async (req, res) => {
-  try {
-    const ride = await Ride.findById(req.params.rideId);
+exports.startRide = catchAsync(async (req, res, next) => {
+  const ride = await Ride.findById(req.params.rideId);
 
-    if (!ride) return res.status(404).json({ msg: "Ride not found" });
+  if (!ride) return next(new AppError("Ride not found", 404, "NOT_FOUND"));
 
-    if (ride.createdBy.toString() !== req.user.id)
-      return res.status(403).json({ msg: "Unauthorized" });
+  if (ride.createdBy.toString() !== req.user.id)
+    return next(new AppError("Not authorized", 403, "FORBIDDEN"));
 
-    ride.status = "live";
-    ride.startTime = new Date();
-    ride.route = { type: "LineString", coordinates: [] };
+  ride.status = "live";
+  ride.startTime = new Date();
+  ride.route = { type: "LineString", coordinates: [] };
 
-    await ride.save();
+  await ride.save();
 
-    res.json({ msg: "Ride started" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
+  res.json(apiResponse.success(null, "Ride started"));
+});
 
 /*
 UPDATE LOCATION
 */
-exports.updateLocation = async (req, res) => {
-  try {
-    const { lat, lng } = req.body;
+exports.updateLocation = catchAsync(async (req, res, next) => {
+  const { lat, lng } = req.body;
 
-    const ride = await Ride.findById(req.params.rideId);
+  const ride = await Ride.findById(req.params.rideId);
 
-    if (!ride || ride.status !== "live")
-      return res.status(400).json({ msg: "Ride not active" });
+  if (!ride || ride.status !== "live")
+    return next(new AppError("Ride not active", 400, "RIDE_NOT_ACTIVE"));
 
-    ride.route.coordinates.push([lng, lat]);
-
-    const coords = ride.route.coordinates;
-
-    if (coords.length > 1) {
-      const prev = coords[coords.length - 2];
-      const curr = coords[coords.length - 1];
-
-      const dist = haversineDistance(
-        { lat: prev[1], lng: prev[0] },
-        { lat: curr[1], lng: curr[0] }
-      );
-
-      ride.totalDistance += dist;
-    }
-
-    await ride.save();
-
-    res.json({ totalDistance: ride.totalDistance });
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  if (!ride.participants.map(p => p.toString()).includes(req.user.id)) {
+    return next(new AppError("Not a ride participant", 403, "FORBIDDEN"));
   }
-};
+
+  ride.route.coordinates.push([lng, lat]);
+
+  const coords = ride.route.coordinates;
+
+  if (coords.length > 1) {
+    const prev = coords[coords.length - 2];
+    const curr = coords[coords.length - 1];
+
+    const dist = haversineDistance(
+      { lat: prev[1], lng: prev[0] },
+      { lat: curr[1], lng: curr[0] }
+    );
+
+    ride.totalDistance += dist;
+  }
+
+  await ride.save();
+
+  res.json(apiResponse.success({ totalDistance: ride.totalDistance }));
+});
 
 /*
 END RIDE
 */
-exports.endRide = async (req, res) => {
-  try {
-    const ride = await Ride.findById(req.params.rideId);
+exports.endRide = catchAsync(async (req, res, next) => {
+  const ride = await Ride.findById(req.params.rideId);
 
-    if (!ride) return res.status(404).json({ msg: "Ride not found" });
+  if (!ride) return next(new AppError("Ride not found", 404, "NOT_FOUND"));
 
-    ride.status = "completed";
-    ride.endTime = new Date();
+  if (ride.createdBy.toString() !== req.user.id)
+    return next(new AppError("Not authorized", 403, "FORBIDDEN"));
 
-    const duration = (ride.endTime - ride.startTime) / 1000;
+  ride.status = "completed";
+  ride.endTime = new Date();
 
-    ride.rideDuration = duration;
+  const duration = (ride.endTime - ride.startTime) / 1000;
 
-    if (duration > 0) {
-      ride.averageSpeed = (ride.totalDistance / duration) * 3600;
-    }
+  ride.rideDuration = duration;
 
-    await ride.save();
-
-    res.json({
-      distance: ride.totalDistance,
-      duration,
-      avgSpeed: ride.averageSpeed
-    });
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  if (duration > 0) {
+    ride.averageSpeed = (ride.totalDistance / duration) * 3600;
   }
-};
+
+  await ride.save();
+
+  res.json(apiResponse.success({
+    distance: ride.totalDistance,
+    duration,
+    avgSpeed: ride.averageSpeed
+  }, "Ride ended"));
+});
 
 /*
-NEARBY RIDES ✅ FIXED
+NEARBY RIDES
 */
-exports.getNearbyRides = async (req, res) => {
-  try {
-    const { lat, lng, radius = 10 } = req.query;
+exports.getNearbyRides = catchAsync(async (req, res, next) => {
+  const { lat, lng, radius = 10 } = req.query;
 
-    if (!lat || !lng)
-      return res.status(400).json({ msg: "Lat & Lng required" });
+  if (!lat || !lng)
+    return next(new AppError("Lat & Lng required", 400, "VALIDATION_ERROR"));
 
-    const radiusInMeters = radius * 1000;
+  const radiusInMeters = radius * 1000;
 
-    const rides = await Ride.find({
-      startCoords: {
-        $near: {
-          $geometry: {
-            type: "Point",
-            coordinates: [parseFloat(lng), parseFloat(lat)]
-          },
-          $maxDistance: radiusInMeters
-        }
+  const rides = await Ride.find({
+    startCoords: {
+      $near: {
+        $geometry: {
+          type: "Point",
+          coordinates: [parseFloat(lng), parseFloat(lat)]
+        },
+        $maxDistance: radiusInMeters
       }
-    }).limit(20);
+    }
+  }).limit(20);
 
-    res.json({ count: rides.length, rides });
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
+  res.json(apiResponse.success({ count: rides.length, rides }));
+});
 
 /*
 GET ROUTE (FOR GOOGLE MAPS)
 */
-exports.getRideRoute = async (req, res) => {
-  try {
-    const ride = await Ride.findById(req.params.rideId);
+exports.getRideRoute = catchAsync(async (req, res, next) => {
+  const ride = await Ride.findById(req.params.rideId);
 
-    if (!ride)
-      return res.status(404).json({ msg: "Ride not found" });
+  if (!ride)
+    return next(new AppError("Ride not found", 404, "NOT_FOUND"));
 
-    const route = ride.route?.coordinates.map(c => ({
-      latitude: c[1],
-      longitude: c[0]
-    })) || [];
+  const route = ride.route?.coordinates.map(c => ({
+    latitude: c[1],
+    longitude: c[0]
+  })) || [];
 
-    res.json({
-      route,
-      totalDistance: ride.totalDistance,
-      duration: ride.rideDuration,
-      avgSpeed: ride.averageSpeed
-    });
+  res.json(apiResponse.success({
+    route,
+    totalDistance: ride.totalDistance,
+    duration: ride.rideDuration,
+    avgSpeed: ride.averageSpeed
+  }));
+});
 
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
 /*
 INVITE USER TO RIDE
 */
-exports.inviteToRide = async (req, res) => {
-  try {
-    const ride = await Ride.findById(req.params.rideId);
+exports.inviteToRide = catchAsync(async (req, res, next) => {
+  const ride = await Ride.findById(req.params.rideId);
 
-    if (!ride)
-      return res.status(404).json({ msg: "Ride not found" });
+  if (!ride)
+    return next(new AppError("Ride not found", 404, "NOT_FOUND"));
 
-    if (ride.createdBy.toString() !== req.user.id)
-      return res.status(403).json({ msg: "Unauthorized" });
+  if (ride.createdBy.toString() !== req.user.id)
+    return next(new AppError("Not authorized", 403, "FORBIDDEN"));
 
-    await Notification.create({
-      recipient: req.params.userId,
-      sender: req.user.id,
-      type: "ride_invite",
-      ride: ride._id
-    });
+  await Notification.create({
+    recipient: req.params.userId,
+    sender: req.user.id,
+    type: "ride_invite",
+    ride: ride._id
+  });
 
-    res.json({ msg: "Ride invitation sent" });
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
+  res.json(apiResponse.success(null, "Ride invitation sent"));
+});
 
 /*
 DELETE RIDE
 */
-exports.deleteRide = async (req, res) => {
-  try {
-    const ride = await Ride.findById(req.params.rideId);
+exports.deleteRide = catchAsync(async (req, res, next) => {
+  const ride = await Ride.findById(req.params.rideId);
 
-    if (!ride)
-      return res.status(404).json({ msg: "Ride not found" });
+  if (!ride)
+    return next(new AppError("Ride not found", 404, "NOT_FOUND"));
 
-    if (ride.createdBy.toString() !== req.user.id)
-      return res.status(403).json({ msg: "Unauthorized" });
+  if (ride.createdBy.toString() !== req.user.id)
+    return next(new AppError("Not authorized", 403, "FORBIDDEN"));
 
-    await ride.deleteOne();
+  await ride.deleteOne();
 
-    res.json({ msg: "Ride deleted successfully" });
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
+  res.json(apiResponse.success(null, "Ride deleted successfully"));
+});

@@ -1,46 +1,38 @@
 const cloudinary = require("../config/cloudinary");
-const fs = require("fs"); // ✅ ADD THIS
+const fs = require("fs");
+const Post = require("../models/Post");
+const User = require("../models/User");
+const catchAsync = require("../utils/catchAsync");
+const AppError = require("../utils/AppError");
+const apiResponse = require("../utils/apiResponse");
 
-exports.uploadFile = async (req, res) => {
+exports.uploadFile = catchAsync(async (req, res, next) => {
+  if (!req.file) {
+    return next(new AppError("No file uploaded", 400, "NO_FILE"));
+  }
+
+  let result;
   try {
-    if (!req.file) {
-      return res.status(400).json({ msg: "No file uploaded" });
-    }
-
-    const result = await cloudinary.uploader.upload(req.file.path, {
+    result = await cloudinary.uploader.upload(req.file.path, {
       folder: "bikerhub",
       resource_type: "auto"
     });
-
-    // ✅ DELETE TEMP FILE (IMPORTANT)
-    fs.unlinkSync(req.file.path);
-
-    res.json({
-      success: true,
-      url: result.secure_url
-    });
-
-  } catch (error) {
-    console.error(error);
-
-    // ⚠️ also delete file if error happens
-    if (req.file && req.file.path) {
-      fs.unlinkSync(req.file.path);
-    }
-
-   console.error(error); // 👈 KEEP THIS
-res.status(500).json({ error: error.message });
+  } finally {
+    await fs.promises.unlink(req.file.path).catch(() => {});
   }
-};
 
-exports.uploadMultipleFiles = async (req, res) => {
-    console.log("FILES:", req.files);
+  res.json(apiResponse.success({ url: result.secure_url, public_id: result.public_id }));
+});
+
+
+exports.uploadMultipleFiles = catchAsync(async (req, res, next) => {
+  if (!req.files || req.files.length === 0) {
+    return next(new AppError("No files uploaded", 400, "NO_FILE"));
+  }
+
+  let results;
   try {
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ msg: "No files uploaded" });
-    }
-
-    const results = await Promise.all(
+    results = await Promise.all(
       req.files.map(file =>
         cloudinary.uploader.upload(file.path, {
           folder: "bikerhub/posts",
@@ -48,87 +40,84 @@ exports.uploadMultipleFiles = async (req, res) => {
         })
       )
     );
-
-    // delete temp files
-    req.files.forEach(file => fs.unlinkSync(file.path));
-
-    const media = results.map(item => ({
-      url: item.secure_url,
-      public_id: item.public_id,
-      type: item.resource_type
-    }));
-
-    res.json({
-      success: true,
-      media
-    });
-
-  } catch (error) {
-    console.error(error);
-
-    if (req.files) {
-      req.files.forEach(file => {
-        if (file.path) fs.unlinkSync(file.path);
-      });
-    }
-
-    console.error(error); // 👈 KEEP THIS
-res.status(500).json({ error: error.message });
+  } finally {
+    await Promise.all(
+      req.files.map(file => fs.promises.unlink(file.path).catch(() => {}))
+    );
   }
-};
 
-exports.uploadProfilePic = async (req, res) => {
+  const media = results.map(item => ({
+    url: item.secure_url,
+    public_id: item.public_id,
+    type: item.resource_type
+  }));
+
+  res.json(apiResponse.success({ media }));
+});
+
+
+exports.uploadProfilePic = catchAsync(async (req, res, next) => {
+  if (!req.file) {
+    return next(new AppError("No file uploaded", 400, "NO_FILE"));
+  }
+
+  const user = await User.findById(req.user.id);
+  if (!user) {
+    await fs.promises.unlink(req.file.path).catch(() => {});
+    return next(new AppError("User not found", 404, "NOT_FOUND"));
+  }
+
+  let result;
   try {
-    const user = req.user; // assuming auth middleware
-
-    if (!req.file) {
-      return res.status(400).json({ msg: "No file uploaded" });
-    }
-
-    // delete old profile pic
+    // delete old profile pic from Cloudinary if exists
     if (user.profilePic?.public_id) {
       await cloudinary.uploader.destroy(user.profilePic.public_id);
     }
 
-    const result = await cloudinary.uploader.upload(req.file.path, {
+    result = await cloudinary.uploader.upload(req.file.path, {
       folder: "bikerhub/profile"
     });
-
-    fs.unlinkSync(req.file.path);
-
-    user.profilePic = {
-      url: result.secure_url,
-      public_id: result.public_id
-    };
-
-    await user.save();
-
-    res.json({
-      success: true,
-      profilePic: user.profilePic
-    });
-
-  } catch (error) {
-    console.error(error);
-
-    if (req.file?.path) fs.unlinkSync(req.file.path);
-
-    console.error(error); // 👈 KEEP THIS
-res.status(500).json({ error: error.message });
+  } finally {
+    await fs.promises.unlink(req.file.path).catch(() => {});
   }
-};
 
-exports.deleteFile = async (req, res) => {
-  try {
-    const { public_id, type } = req.body;
+  user.profilePic = {
+    url: result.secure_url,
+    public_id: result.public_id
+  };
 
-    await cloudinary.uploader.destroy(public_id, {
-      resource_type: type || "image"
-    });
+  await user.save();
 
-    res.json({ success: true, msg: "Deleted successfully" });
+  res.json(apiResponse.success({ profilePic: user.profilePic }));
+});
 
-  } catch (error) {
-    res.status(500).json({ error: "Delete failed" });
+
+exports.deleteFile = catchAsync(async (req, res, next) => {
+  const { public_id, type } = req.body;
+
+  if (!public_id) {
+    return next(new AppError("public_id is required", 400, "VALIDATION_ERROR"));
   }
-};
+
+  // Verify ownership: check if a Post with this public_id belongs to the caller,
+  // or the caller's own profilePic matches this public_id
+  const post = await Post.findOne({ "media.public_id": public_id });
+
+  if (post) {
+    if (post.author.toString() !== req.user.id) {
+      return next(new AppError("Not authorized", 403, "FORBIDDEN"));
+    }
+  } else {
+    // Check if it belongs to the user's profile picture
+    const user = await User.findById(req.user.id);
+    if (!user || user.profilePic?.public_id !== public_id) {
+      return next(new AppError("Not authorized", 403, "FORBIDDEN"));
+    }
+  }
+
+  await cloudinary.uploader.destroy(public_id, {
+    resource_type: type || "image"
+  });
+
+  res.json(apiResponse.success(null, "Deleted successfully"));
+});
