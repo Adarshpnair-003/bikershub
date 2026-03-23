@@ -38,7 +38,7 @@ src/
   models/       — Mongoose schemas (User, Post, Comment, Club, Ride, Notification, Conversation, Message, RefreshToken)
   services/     — Business logic (one per resource)
   controllers/  — Thin wrappers (validate → service → respond)
-  routes/v1/    — API v1 endpoints
+  routes/       — API endpoints
   validators/   — Joi schemas per resource
   socket/       — Socket.IO handlers (chat, ride tracking, notifications, posts)
   utils/        — AppError, catchAsync, apiResponse, distance, geocode, sanitize
@@ -147,7 +147,7 @@ Services contain all business logic. They:
 
 Required (see `.env.example`):
 - `NODE_ENV`, `PORT`
-- `MONGO_URI`, `JWT_SECRET`, `JWT_ACCESS_EXPIRY`, `JWT_REFRESH_EXPIRY`
+- `MONGO_URI`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ACCESS_EXPIRY`, `JWT_REFRESH_EXPIRY`
 - `GOOGLE_CLIENT_ID`
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
 - `REDIS_URL`
@@ -155,23 +155,23 @@ Required (see `.env.example`):
 - `ALLOWED_ORIGINS`
 - `LOG_LEVEL`
 
-## API Endpoints (v1)
+## API Endpoints
 
-### Auth (`/api/v1/auth`)
+### Auth (`/api/auth`)
 - `POST /register` — Register with username/email/password
 - `POST /login` — Login, returns access + refresh tokens
 - `POST /google` — Google OAuth login
 - `POST /refresh` — Refresh access token
 - `POST /logout` — Revoke refresh token
 
-### Users (`/api/v1/users`)
+### Users (`/api/users`)
 - `GET /me` — Current user profile (auth)
 - `GET /:id` — Public user profile
 - `PUT /me` — Update profile (auth)
 - `PUT /follow/:id` — Follow user (auth)
 - `PUT /unfollow/:id` — Unfollow user (auth)
 
-### Posts (`/api/v1/posts`)
+### Posts (`/api/posts`)
 - `POST /` — Create post with media (auth, up to 5 files)
 - `GET /` — Global feed (paginated)
 - `GET /feed` — Smart feed from followed users (auth, cursor-based)
@@ -180,13 +180,13 @@ Required (see `.env.example`):
 - `DELETE /:id` — Delete post (auth, owner only)
 - `PUT /:id/like` — Like/unlike (auth)
 
-### Comments (`/api/v1/comments`)
+### Comments (`/api/comments`)
 - `POST /:postId` — Create comment/reply (auth)
 - `GET /:postId` — Get comments (paginated)
 - `PUT /:id/like` — Like/unlike comment (auth)
 - `DELETE /:id` — Soft delete (auth, owner only)
 
-### Clubs (`/api/v1/clubs`)
+### Clubs (`/api/clubs`)
 - `POST /` — Create club (auth)
 - `GET /:id` — Club details
 - `POST /:id/join` — Join/request to join (auth)
@@ -197,7 +197,7 @@ Required (see `.env.example`):
 - `POST /:id/posts` — Create club post (auth, member)
 - `GET /:id/posts` — Get club posts
 
-### Rides (`/api/v1/rides`)
+### Rides (`/api/rides`)
 - `POST /` — Create ride (auth)
 - `GET /` — List rides (paginated)
 - `GET /nearby` — Nearby rides (geospatial, auth)
@@ -213,28 +213,28 @@ Required (see `.env.example`):
 - `GET /:id/route` — Get ride route
 - `GET /:id/locations` — Get live rider locations
 
-### Notifications (`/api/v1/notifications`)
+### Notifications (`/api/notifications`)
 - `GET /` — Get notifications (auth, paginated)
 - `GET /unread-count` — Unread count (auth)
 - `PUT /:id/read` — Mark as read (auth, owner)
 - `PUT /read-all` — Mark all as read (auth)
 - `DELETE /:id` — Delete notification (auth, owner)
 
-### Chat (`/api/v1/chat`)
+### Chat (`/api/chat`)
 - `POST /send` — Send message (auth, participant only)
 - `GET /conversation/:id` — Get messages (auth, participant only, paginated)
 - `PUT /read/:conversationId` — Mark read (auth, participant only)
 - `GET /unread` — Unread count (auth)
 
-### Conversations (`/api/v1/conversations`)
+### Conversations (`/api/conversations`)
 - `POST /` — Create/get DM conversation (auth)
 - `GET /` — List conversations (auth)
 - `GET /:id` — Get conversation (auth, participant only)
 
-### Search (`/api/v1/search`)
+### Search (`/api/search`)
 - `GET /` — Global search (sanitized regex, paginated)
 
-### Upload (`/api/v1/upload`)
+### Upload (`/api/upload`)
 - `POST /` — Upload single file (auth)
 - `POST /multiple` — Upload multiple files (auth, max 5)
 - `POST /profile` — Upload profile picture (auth)
@@ -299,7 +299,7 @@ Full rebuild in 8 phases. See `docs/superpowers/specs/2026-03-23-bikershub-full-
 - [ ] Create `services/uploadService.js` — upload, uploadMultiple, uploadProfile, delete logic; fix profilePic to use req.user properly (query DB for user doc)
 - [ ] Create all Joi validators — `validators/authValidator.js` (register, login), `validators/postValidator.js` (create, update), `validators/rideValidator.js` (create, update, location), `validators/clubValidator.js` (create), `validators/chatValidator.js` (send)
 - [ ] Refactor all controllers — thin wrappers using catchAsync, calling services, returning apiResponse
-- [ ] Create `routes/v1/index.js` — aggregate all route files under `/api/v1`
+- [ ] Create `routes/index.js` — aggregate all route files under `/api`
 - [ ] Fix all route files — remove duplicate routes, consistent auth middleware on all protected endpoints, add validation middleware
 - [ ] Remove dead code — duplicate getUserProfile, duplicate `/create` route, duplicate console.error calls
 - [ ] Replace `fs.unlinkSync` with `fs.promises.unlink` in postController/uploadController
