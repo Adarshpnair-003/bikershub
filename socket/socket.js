@@ -1,4 +1,5 @@
 const { Server } = require("socket.io");
+const jwt = require("jsonwebtoken");
 const Ride = require("../models/Ride");
 const haversineDistance = require("../utils/distance");
 const env = require("../config/env");
@@ -21,6 +22,23 @@ const initSocket = (server) => {
     }
   });
 
+  io.use((socket, next) => {
+    try {
+      const token = socket.handshake.auth?.token ||
+                    socket.handshake.headers?.authorization?.split(" ")[1];
+
+      if (!token) {
+        return next(new Error("Authentication required"));
+      }
+
+      const decoded = jwt.verify(token, env.JWT_SECRET);
+      socket.user = { id: decoded.id };
+      next();
+    } catch {
+      next(new Error("Invalid or expired token"));
+    }
+  });
+
   io.on("connection", (socket) => {
 
     console.log("User connected:", socket.id);
@@ -40,13 +58,13 @@ const initSocket = (server) => {
 
     socket.on("typing", (data) => {
       socket.to(`conversation:${data.conversationId}`).emit("typing", {
-        senderId: data.senderId
+        senderId: socket.user.id
       });
     });
 
     socket.on("stopTyping", (data) => {
       socket.to(`conversation:${data.conversationId}`).emit("stopTyping", {
-        senderId: data.senderId
+        senderId: socket.user.id
       });
     });
 
@@ -68,10 +86,11 @@ const initSocket = (server) => {
     // Live GPS updates
     socket.on("rideLocationUpdate", async (data) => {
       try {
-        const { rideId, userId, lat, lng } = data;
+        const { rideId, lat, lng } = data;
+        const userId = socket.user.id;
 
         // ✅ Validation
-        if (!rideId || !userId || lat == null || lng == null) return;
+        if (!rideId || lat == null || lng == null) return;
 
         const ride = await Ride.findById(rideId);
         if (!ride) return;
