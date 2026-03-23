@@ -3,9 +3,11 @@ const router = express.Router();
 
 const upload = require("../middleware/upload");
 const uploadController = require("../controllers/uploadController");
-const authMiddleware = require("../middleware/authMiddleware");
+const { protect } = require("../middleware/auth");
+
 router.post("/", upload.single("file"), uploadController.uploadFile);
-// ✅ NEW (multiple upload)
+
+// Upload multiple files
 router.post(
   "/multiple",
   upload.array("media", 5),
@@ -14,7 +16,7 @@ router.post(
 
 router.post(
   "/profile",
-  authMiddleware,
+  protect,
   upload.single("file"),
   uploadController.uploadProfilePic
 );
