@@ -5,7 +5,7 @@ const upload = require("../middleware/upload");
 const uploadController = require("../controllers/uploadController");
 const { protect } = require("../middleware/auth");
 
-router.post("/", upload.single("file"), uploadController.uploadFile);
+router.post("/", protect, upload.single("file"), uploadController.uploadFile);
 
 // Upload multiple files
 router.post(
@@ -21,6 +21,6 @@ router.post(
   uploadController.uploadProfilePic
 );
 
-router.delete("/", uploadController.deleteFile);
+router.delete("/", protect, uploadController.deleteFile);
 
 module.exports = router;

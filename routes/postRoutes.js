@@ -9,7 +9,7 @@ const upload = require("../middleware/upload");
 router.post("/", protect, upload.array("media", 5), postController.createPost);
 
 /* GLOBAL FEED */
-router.get("/", protect, postController.getAllPosts);
+router.get("/", postController.getAllPosts);
 
 /* SMART FEED */
 router.get("/feed", protect, postController.getSmartFeed);
