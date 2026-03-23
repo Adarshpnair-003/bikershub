@@ -21,8 +21,8 @@ const getUserDisplay = (user) => ({
 
 /**
  * Issue a short-lived access token and a long-lived refresh token.
- * The refresh token is stored in the DB (hashed not needed here — random 40-byte hex is
- * already unguessable; full token stored for direct lookup).
+ * The refresh token is stored as a SHA-256 hash so a DB breach does not
+ * expose usable tokens. The raw token is returned to the client only.
  */
 async function issueTokens(userId) {
   const accessToken = jwt.sign(
@@ -32,17 +32,18 @@ async function issueTokens(userId) {
   );
 
   const rawRefresh = crypto.randomBytes(40).toString("hex");
+  const hash = crypto.createHash("sha256").update(rawRefresh).digest("hex");
   const family = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
   await RefreshToken.create({
-    token: rawRefresh,
+    token: hash,   // hashed — never the raw token
     userId,
     family,
     expiresAt
   });
 
-  return { accessToken, refreshToken: rawRefresh };
+  return { accessToken, refreshToken: rawRefresh }; // raw token returned to client
 }
 
 
@@ -137,8 +138,9 @@ exports.refreshToken = catchAsync(async (req, res, next) => {
   const { refreshToken } = req.body;
   if (!refreshToken) return next(new AppError("Refresh token required", 400, "MISSING_TOKEN"));
 
-  // Find the stored token record
-  const stored = await RefreshToken.findOne({ token: refreshToken });
+  // Hash the incoming token before lookup — DB stores hashes only
+  const hash = crypto.createHash("sha256").update(refreshToken).digest("hex");
+  const stored = await RefreshToken.findOne({ token: hash });
 
   if (!stored) {
     return next(new AppError("Invalid refresh token", 401, "INVALID_TOKEN"));
@@ -164,10 +166,11 @@ exports.refreshToken = catchAsync(async (req, res, next) => {
 
   // Issue new refresh token in the same family (preserves reuse detection chain)
   const rawRefresh = crypto.randomBytes(40).toString("hex");
+  const newHash = crypto.createHash("sha256").update(rawRefresh).digest("hex");
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   await RefreshToken.create({
-    token: rawRefresh,
+    token: newHash,   // hashed — never the raw token
     userId: stored.userId,
     family: stored.family,  // preserve family for reuse detection
     expiresAt
@@ -180,7 +183,7 @@ exports.refreshToken = catchAsync(async (req, res, next) => {
   );
 
   res.json(apiResponse.success(
-    { token: accessToken, refreshToken: rawRefresh },
+    { token: accessToken, refreshToken: rawRefresh },  // raw token to client
     "Token refreshed"
   ));
 });
@@ -191,8 +194,9 @@ exports.logout = catchAsync(async (req, res, next) => {
   const { refreshToken } = req.body;
   if (!refreshToken) return next(new AppError("Refresh token required", 400, "MISSING_TOKEN"));
 
+  const hash = crypto.createHash("sha256").update(refreshToken).digest("hex");
   await RefreshToken.findOneAndUpdate(
-    { token: refreshToken },
+    { token: hash, userId: req.user.id },
     { revoked: true }
   );
 
