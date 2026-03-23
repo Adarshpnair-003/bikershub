@@ -1,9 +1,10 @@
 const rateLimit = require("express-rate-limit");
+const env = require("../config/env");
 
 // Global: 100 requests per 15 minutes
 exports.globalLimiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
+  windowMs: env.RATE_LIMIT_WINDOW_MS,
+  max: env.RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, error: { code: "RATE_LIMITED", message: "Too many requests, please try again later." } }

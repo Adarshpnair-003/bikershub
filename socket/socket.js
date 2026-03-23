@@ -1,14 +1,22 @@
 const { Server } = require("socket.io");
 const Ride = require("../models/Ride");
 const haversineDistance = require("../utils/distance");
+const env = require("../config/env");
 
 let io;
 
 const initSocket = (server) => {
+  const allowedOrigins = env.ALLOWED_ORIGINS.split(",").map((o) => o.trim());
 
   io = new Server(server, {
     cors: {
-      origin: "*",
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error("Not allowed by CORS"));
+        }
+      },
       methods: ["GET", "POST"]
     }
   });

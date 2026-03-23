@@ -94,3 +94,11 @@ const PORT = env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`[server] Running on port ${PORT} in ${env.NODE_ENV} mode`);
 });
+
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(`[server] Port ${PORT} is already in use`);
+    process.exit(1);
+  }
+  throw err;
+});
