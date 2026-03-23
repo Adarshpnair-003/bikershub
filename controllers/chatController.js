@@ -1,91 +1,78 @@
 const Message = require("../models/Message");
 const Conversation = require("../models/Conversation");
 const { getIO } = require("../socket/socket");
+const catchAsync = require("../utils/catchAsync");
+const AppError = require("../utils/AppError");
+const apiResponse = require("../utils/apiResponse");
 
-/* SEND MESSAGE */
-exports.sendMessage = async (req, res) => {
-  try {
+async function assertParticipant(conversationId, userId) {
+  const convo = await Conversation.findById(conversationId).select("participants").lean();
+  if (!convo) throw new AppError("Conversation not found", 404, "NOT_FOUND");
+  const isParticipant = convo.participants.some(
+    (p) => p.toString() === userId.toString()
+  );
+  if (!isParticipant) throw new AppError("Access denied", 403, "FORBIDDEN");
+}
 
-    const { conversationId, text, type } = req.body;
+exports.sendMessage = catchAsync(async (req, res, next) => {
+  const { conversationId, text, type } = req.body;
+  await assertParticipant(conversationId, req.user.id);
 
-    const message = await Message.create({
-      conversation: conversationId,
-      sender: req.user.id,
-      text,
-      type: type || "text",
-      readBy: [req.user.id]
-    });
+  const message = await Message.create({
+    conversation: conversationId,
+    sender: req.user.id,
+    text,
+    type: type || "text",
+    readBy: [req.user.id]
+  });
 
-    /* update last message in conversation */
-    await Conversation.findByIdAndUpdate(conversationId, {
-      lastMessage: text,
-      lastMessageAt: new Date()
-    });
+  await Conversation.findByIdAndUpdate(conversationId, {
+    lastMessage: text,
+    lastMessageAt: new Date()
+  });
 
-    /* SOCKET REALTIME EMIT */
-    const io = getIO();
+  const io = getIO();
+  io.to(`conversation:${conversationId}`).emit("receiveMessage", message);
 
-    io.to(conversationId).emit("receiveMessage", message);
+  res.status(201).json(apiResponse.success(message, "Message sent"));
+});
 
-    res.status(201).json(message);
+exports.getMessagesByConversation = catchAsync(async (req, res, next) => {
+  const { conversationId } = req.params;
+  await assertParticipant(conversationId, req.user.id);
 
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
+  const messages = await Message.find({ conversation: conversationId })
+    .populate("sender", "username")
+    .sort({ createdAt: 1 })
+    .lean();
 
+  res.json(apiResponse.success(messages));
+});
 
-/* GET MESSAGES FOR A CONVERSATION */
-exports.getMessagesByConversation = async (req, res) => {
-  try {
+exports.markAsRead = catchAsync(async (req, res, next) => {
+  const { conversationId } = req.params;
+  await assertParticipant(conversationId, req.user.id);
 
-    const messages = await Message.find({
-      conversation: req.params.conversationId
-    })
-      .populate("sender", "username")
-      .sort({ createdAt: 1 });
+  await Message.updateMany(
+    { conversation: conversationId, readBy: { $ne: req.user.id } },
+    { $push: { readBy: req.user.id } }
+  );
 
-    res.json(messages);
+  res.json(apiResponse.success(null, "Messages marked as read"));
+});
 
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
+exports.getUnreadCount = catchAsync(async (req, res, next) => {
+  // Scope to conversations the user is part of — find their conversation IDs first
+  const conversations = await Conversation.find(
+    { participants: req.user.id },
+    "_id"
+  ).lean();
+  const conversationIds = conversations.map((c) => c._id);
 
+  const count = await Message.countDocuments({
+    conversation: { $in: conversationIds },
+    readBy: { $ne: req.user.id }
+  });
 
-/* MARK MESSAGES AS READ */
-exports.markAsRead = async (req, res) => {
-  try {
-
-    await Message.updateMany(
-      {
-        conversation: req.params.conversationId,
-        readBy: { $ne: req.user.id }
-      },
-      {
-        $push: { readBy: req.user.id }
-      }
-    );
-
-    res.json({ message: "Messages marked as read" });
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-
-/* UNREAD COUNT */
-exports.getUnreadCount = async (req, res) => {
-  try {
-
-    const count = await Message.countDocuments({
-      readBy: { $ne: req.user.id }
-    });
-
-    res.json({ unread: count });
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
+  res.json(apiResponse.success({ unread: count }));
+});
