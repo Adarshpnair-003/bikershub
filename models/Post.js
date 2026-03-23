@@ -19,7 +19,6 @@ const postSchema = new mongoose.Schema(
       default: null
     },
 
-    // ✅ ADD THIS BLOCK
     media: [
       {
         url: {
@@ -48,5 +47,8 @@ const postSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+postSchema.index({ author: 1, createdAt: -1 });
+postSchema.index({ club: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Post", postSchema);

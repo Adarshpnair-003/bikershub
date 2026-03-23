@@ -22,8 +22,9 @@ const NotificationSchema = new mongoose.Schema(
       "club_approved",
       "club_rejected",
       "ride_invite",
-      "ride_join",  
-      "follow"
+      "ride_join",
+      "follow",
+      "reply"
     ]
   },
 
@@ -50,5 +51,7 @@ const NotificationSchema = new mongoose.Schema(
 },
 { timestamps: true }
 );
+
+NotificationSchema.index({ recipient: 1, isRead: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Notification", NotificationSchema);

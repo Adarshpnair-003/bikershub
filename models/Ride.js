@@ -34,18 +34,20 @@ const rideSchema = new mongoose.Schema(
   destination: {
     type: String,
     required: true
-  }, destinationCoords: {
-  type: {
-    type: String,
-    enum: ["Point"],
-    default: "Point"
   },
-  coordinates: {
-    type: [Number], // [lng, lat]
-     default: [0, 0],
-    required: true
-  }
-},
+
+  destinationCoords: {
+    type: {
+      type: String,
+      enum: ["Point"],
+      default: "Point"
+    },
+    coordinates: {
+      type: [Number], // [lng, lat]
+      default: [0, 0],
+      required: true
+    }
+  },
 
   rideDate: {
     type: Date,
@@ -126,7 +128,7 @@ const rideSchema = new mongoose.Schema(
     }
   },
 
-  // 📍 LIVE RIDER LOCATIONS
+  // 📍 LIVE RIDER LOCATIONS (capped at 50 entries — oldest are trimmed on save)
   riderLocations: [
     {
       user: {
@@ -167,6 +169,25 @@ const rideSchema = new mongoose.Schema(
 },
 { timestamps: true }
 );
+
+/* ============================
+   PRE-SAVE HOOKS
+============================ */
+
+// Cap riderLocations at 50 entries to prevent unbounded document growth
+rideSchema.pre("save", function (next) {
+  if (this.riderLocations && this.riderLocations.length > 50) {
+    this.riderLocations = this.riderLocations.slice(-50);
+  }
+  if (
+    this.route &&
+    this.route.coordinates &&
+    this.route.coordinates.length > 2000
+  ) {
+    this.route.coordinates = this.route.coordinates.slice(-2000);
+  }
+  next();
+});
 
 /* ============================
    INDEXES (VERY IMPORTANT)
