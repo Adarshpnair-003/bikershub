@@ -1,12 +1,12 @@
 const mongoose = require("mongoose");
-require("./env"); // ensure env validation runs first
+const env = require("./env"); // ensure env validation runs first
 
 const MAX_RETRIES = 5;
 const RETRY_DELAY_MS = 5000;
 
 async function connectDB(attempt = 1) {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    await mongoose.connect(env.MONGO_URI);
     console.log("[db] MongoDB connected");
   } catch (err) {
     console.error(`[db] Connection attempt ${attempt} failed: ${err.message}`);
@@ -26,6 +26,10 @@ mongoose.connection.on("error", (err) => {
 
 mongoose.connection.on("disconnected", () => {
   console.warn("[db] MongoDB disconnected");
+});
+
+mongoose.connection.on("reconnected", () => {
+  console.log("[db] MongoDB reconnected");
 });
 
 module.exports = connectDB;
