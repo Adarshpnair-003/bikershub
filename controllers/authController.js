@@ -58,8 +58,8 @@ exports.login = async (req, res) => {
 
     const user = await User.findOne({ email });
 
-    // Same message for both cases — prevents email enumeration
-    if (!user || user.isSocialLogin) {
+    // Same message for all cases — prevents email enumeration
+    if (!user || user.isSocialLogin || !user.password) {
       return res.status(400).json({ msg: "Invalid credentials" });
     }
 
