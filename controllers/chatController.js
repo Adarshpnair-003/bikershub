@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Message = require("../models/Message");
 const Conversation = require("../models/Conversation");
 const { getIO } = require("../socket/socket");
@@ -46,7 +47,10 @@ exports.getMessagesByConversation = catchAsync(async (req, res, next) => {
 
   const filter = { conversation: conversationId };
   if (before) {
-    filter._id = { $lt: before };
+    if (!mongoose.Types.ObjectId.isValid(before)) {
+      return next(new AppError("Invalid cursor", 400, "INVALID_CURSOR"));
+    }
+    filter._id = { $lt: new mongoose.Types.ObjectId(before) };
   }
 
   const messages = await Message.find(filter)

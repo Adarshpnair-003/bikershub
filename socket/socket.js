@@ -58,6 +58,12 @@ const initSocket = (server) => {
         const { conversationId, text, type } = data;
         if (!conversationId || !text) return;
 
+        // Authorization: verify sender is a participant
+        const convo = await Conversation.findById(conversationId).select("participants").lean();
+        if (!convo) return;
+        const isParticipant = convo.participants.some(p => p.toString() === socket.user.id.toString());
+        if (!isParticipant) return; // silently ignore (socket context, not HTTP)
+
         const message = await Message.create({
           conversation: conversationId,
           sender: socket.user.id,
@@ -71,7 +77,7 @@ const initSocket = (server) => {
           lastMessageAt: new Date()
         });
 
-        io.to(`conversation:${conversationId}`).emit("receiveMessage", message);
+        io.to(`conversation:${conversationId}`).emit("receiveMessage", message.toObject());
       } catch (err) {
         console.error("[socket] sendMessage error:", err.message);
       }
@@ -201,6 +207,10 @@ const initSocket = (server) => {
         const convo = await Conversation.findOne({ type: "club", club: clubId });
         if (!convo) return;
 
+        // Authorization: verify sender is a participant
+        const isParticipant = convo.participants.some(p => p.toString() === socket.user.id.toString());
+        if (!isParticipant) return; // silently ignore (socket context, not HTTP)
+
         const message = await Message.create({
           conversation: convo._id,
           sender: socket.user.id,
@@ -209,7 +219,12 @@ const initSocket = (server) => {
           readBy: [socket.user.id]
         });
 
-        io.to(`club:${clubId}`).emit("receiveClubMessage", message);
+        await Conversation.findByIdAndUpdate(convo._id, {
+          lastMessage: text,
+          lastMessageAt: new Date()
+        });
+
+        io.to(`club:${clubId}`).emit("receiveClubMessage", message.toObject());
       } catch (err) {
         console.error("[socket] sendClubMessage error:", err.message);
       }
@@ -231,6 +246,10 @@ const initSocket = (server) => {
         const convo = await Conversation.findOne({ type: "ride", ride: rideId });
         if (!convo) return;
 
+        // Authorization: verify sender is a participant
+        const isParticipant = convo.participants.some(p => p.toString() === socket.user.id.toString());
+        if (!isParticipant) return; // silently ignore (socket context, not HTTP)
+
         const message = await Message.create({
           conversation: convo._id,
           sender: socket.user.id,
@@ -239,7 +258,12 @@ const initSocket = (server) => {
           readBy: [socket.user.id]
         });
 
-        io.to(`rideChat:${rideId}`).emit("receiveRideMessage", message);
+        await Conversation.findByIdAndUpdate(convo._id, {
+          lastMessage: text,
+          lastMessageAt: new Date()
+        });
+
+        io.to(`rideChat:${rideId}`).emit("receiveRideMessage", message.toObject());
       } catch (err) {
         console.error("[socket] sendRideMessage error:", err.message);
       }
