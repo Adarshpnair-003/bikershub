@@ -19,7 +19,7 @@ async function issueTokens(userId) {
   const family = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   await RefreshToken.create({ token: hashToken(rawRefresh), userId, family, expiresAt });
-  return { accessToken, refreshToken: rawRefresh };
+  return { token: accessToken, refreshToken: rawRefresh };
 }
 
 exports.register = async ({ username, name, email, password }) => {
