@@ -1,183 +1,29 @@
-const Comment = require("../models/Comment");
-const Post = require("../models/Post");
-const Notification = require("../models/Notification");
-const { getIO } = require("../socket/socket");
-/*
-CREATE COMMENT OR REPLY
-*/
-exports.createComment = async (req, res) => {
-  try {
+const commentService = require("../services/commentService");
+const catchAsync = require("../utils/catchAsync");
+const apiResponse = require("../utils/apiResponse");
 
-    const { content, parentComment } = req.body;
-    const { postId } = req.params;
-
-    const post = await Post.findById(postId);
-
-    if (!post)
-      return res.status(404).json({ msg: "Post not found" });
-
-    const comment = await Comment.create({
-      content,
-      author: req.user.id,
-      post: postId,
-      parentComment: parentComment || null
-    });
-    /* REALTIME COMMENT */
-const io = getIO();
-
-const populatedComment = await comment.populate("author", "username");
-
-io.to(`post:${postId}`).emit("newComment", populatedComment);
-
-    await Post.findByIdAndUpdate(postId, {
-      $inc: { commentsCount: 1 }
-    });
-
-    /* NOTIFY POST OWNER */
-    if (post.author.toString() !== req.user.id) {
-
-      await Notification.create({
-        recipient: post.author,
-        sender: req.user.id,
-        type: "comment",
-        post: postId
-      });
-
-    }
-
-    /* NOTIFY PARENT COMMENT OWNER */
-    if (parentComment) {
-
-      const parent = await Comment.findById(parentComment);
-
-      if (parent && parent.author.toString() !== req.user.id) {
-
-        await Notification.create({
-          recipient: parent.author,
-          sender: req.user.id,
-          type: "reply",
-          post: postId
-        });
-
-      }
-
-    }
-
-    res.status(201).json(comment);
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-
-/*
-GET COMMENTS WITH PAGINATION
-*/
-exports.getComments = async (req, res) => {
-  try {
-
-    const page = parseInt(req.query.page) || 1;
-    const limit = 10;
-    const skip = (page - 1) * limit;
-
-    const comments = await Comment.find({
-      post: req.params.postId,
-      parentComment: null,
-      isDeleted: false
-    })
-      .populate("author", "username")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    res.json(comments);
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-
-/*
-LIKE / UNLIKE COMMENT
-*/
-exports.likeComment = async (req, res) => {
-  try {
-
-    const comment = await Comment.findById(req.params.commentId);
-
-    if (!comment)
-      return res.status(404).json({ msg: "Comment not found" });
-
-    const alreadyLiked = comment.likes.includes(req.user.id);
-
-    if (alreadyLiked) {
-
-      comment.likes = comment.likes.filter(
-        id => id.toString() !== req.user.id
-      );
-
-    } else {
-
-      comment.likes.push(req.user.id);
-
-    }
-
-    await comment.save();
-    /* REALTIME LIKE UPDATE */
-const io = getIO();
-
-io.to(`post:${comment.post}`).emit("commentLiked", {
-  commentId: comment._id,
-  likesCount: comment.likes.length
+exports.createComment = catchAsync(async (req, res) => {
+  const comment = await commentService.create({
+    postId: req.params.postId,
+    content: req.body.content,
+    parentComment: req.body.parentComment,
+    authorId: req.user.id,
+    io: req.io
+  });
+  res.status(201).json(apiResponse.success(comment, "Comment created"));
 });
 
-    res.json({
-      likesCount: comment.likes.length,
-      liked: !alreadyLiked
-    });
+exports.getComments = catchAsync(async (req, res) => {
+  const comments = await commentService.getByPost(req.params.postId, { page: req.query.page });
+  res.json(apiResponse.success(comments));
+});
 
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
+exports.likeComment = catchAsync(async (req, res) => {
+  const result = await commentService.like(req.params.commentId, req.user.id, req.io);
+  res.json(apiResponse.success(result));
+});
 
-
-/*
-DELETE COMMENT (SOFT DELETE)
-*/
-exports.deleteComment = async (req, res) => {
-  try {
-
-    const comment = await Comment.findById(req.params.commentId);
-
-    if (!comment)
-      return res.status(404).json({ msg: "Comment not found" });
-
-    const post = await Post.findById(comment.post);
-
-    if (!post)
-      return res.status(404).json({ msg: "Post not found" });
-
-    const isCommentAuthor = comment.author.toString() === req.user.id;
-    const isPostOwner = post.author.toString() === req.user.id;
-
-    if (!isCommentAuthor && !isPostOwner)
-      return res.status(403).json({ msg: "Unauthorized" });
-
-    comment.isDeleted = true;
-    comment.content = "This comment was deleted";
-
-    await comment.save();
-
-    await Post.findByIdAndUpdate(comment.post, {
-      $inc: { commentsCount: -1 }
-    });
-
-    res.json({ msg: "Comment deleted successfully" });
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
+exports.deleteComment = catchAsync(async (req, res) => {
+  await commentService.delete(req.params.commentId, req.user.id);
+  res.json(apiResponse.success(null, "Comment deleted successfully"));
+});
