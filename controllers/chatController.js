@@ -41,10 +41,22 @@ exports.getMessagesByConversation = catchAsync(async (req, res, next) => {
   const { conversationId } = req.params;
   await assertParticipant(conversationId, req.user.id);
 
-  const messages = await Message.find({ conversation: conversationId })
+  const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+  const before = req.query.before; // message _id cursor
+
+  const filter = { conversation: conversationId };
+  if (before) {
+    filter._id = { $lt: before };
+  }
+
+  const messages = await Message.find(filter)
     .populate("sender", "username")
-    .sort({ createdAt: 1 })
+    .sort({ _id: -1 })  // newest first for cursor pagination
+    .limit(limit)
     .lean();
+
+  // Return in chronological order (oldest first)
+  messages.reverse();
 
   res.json(apiResponse.success(messages));
 });

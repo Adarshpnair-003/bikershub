@@ -1,6 +1,8 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const Ride = require("../models/Ride");
+const Message = require("../models/Message");
+const Conversation = require("../models/Conversation");
 const haversineDistance = require("../utils/distance");
 const env = require("../config/env");
 
@@ -51,9 +53,28 @@ const initSocket = (server) => {
       console.log("Joined conversation:", conversationId);
     });
 
-    socket.on("sendMessage", (data) => {
-      const { conversationId } = data;
-      io.to(`conversation:${conversationId}`).emit("receiveMessage", data);
+    socket.on("sendMessage", async (data) => {
+      try {
+        const { conversationId, text, type } = data;
+        if (!conversationId || !text) return;
+
+        const message = await Message.create({
+          conversation: conversationId,
+          sender: socket.user.id,
+          text,
+          type: type || "text",
+          readBy: [socket.user.id]
+        });
+
+        await Conversation.findByIdAndUpdate(conversationId, {
+          lastMessage: text,
+          lastMessageAt: new Date()
+        });
+
+        io.to(`conversation:${conversationId}`).emit("receiveMessage", message);
+      } catch (err) {
+        console.error("[socket] sendMessage error:", err.message);
+      }
     });
 
     socket.on("typing", (data) => {
@@ -171,9 +192,27 @@ const initSocket = (server) => {
       socket.join(`club:${clubId}`);
     });
 
-    socket.on("sendClubMessage", (data) => {
-      const { clubId } = data;
-      io.to(`club:${clubId}`).emit("receiveClubMessage", data);
+    socket.on("sendClubMessage", async (data) => {
+      try {
+        const { clubId, text, type } = data;
+        if (!clubId || !text) return;
+
+        // Find the club's conversation
+        const convo = await Conversation.findOne({ type: "club", club: clubId });
+        if (!convo) return;
+
+        const message = await Message.create({
+          conversation: convo._id,
+          sender: socket.user.id,
+          text,
+          type: type || "text",
+          readBy: [socket.user.id]
+        });
+
+        io.to(`club:${clubId}`).emit("receiveClubMessage", message);
+      } catch (err) {
+        console.error("[socket] sendClubMessage error:", err.message);
+      }
     });
 
     /* ============================
@@ -183,9 +222,27 @@ const initSocket = (server) => {
       socket.join(`rideChat:${rideId}`);
     });
 
-    socket.on("sendRideMessage", (data) => {
-      const { rideId } = data;
-      io.to(`rideChat:${rideId}`).emit("receiveRideMessage", data);
+    socket.on("sendRideMessage", async (data) => {
+      try {
+        const { rideId, text, type } = data;
+        if (!rideId || !text) return;
+
+        // Find the ride's conversation
+        const convo = await Conversation.findOne({ type: "ride", ride: rideId });
+        if (!convo) return;
+
+        const message = await Message.create({
+          conversation: convo._id,
+          sender: socket.user.id,
+          text,
+          type: type || "text",
+          readBy: [socket.user.id]
+        });
+
+        io.to(`rideChat:${rideId}`).emit("receiveRideMessage", message);
+      } catch (err) {
+        console.error("[socket] sendRideMessage error:", err.message);
+      }
     });
 
     /* ============================
