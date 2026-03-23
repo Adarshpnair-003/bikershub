@@ -3,14 +3,13 @@ const mongoose = require("mongoose");
 const refreshTokenSchema = new mongoose.Schema({
   token: {
     type: String,
-    required: true,
-    index: true   // fast lookup on token hash
+    required: true
+    // indexed below with unique: true
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
-    required: true,
-    index: true
+    required: true
   },
   family: {
     type: String,
@@ -26,7 +25,10 @@ const refreshTokenSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// TTL index — MongoDB automatically removes expired tokens
-refreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+// Explicit indexes — consistent with all other models in this codebase
+refreshTokenSchema.index({ token: 1 }, { unique: true });   // tokens are security credentials — must be unique
+refreshTokenSchema.index({ userId: 1 });                     // look up all tokens for a user (logout all devices)
+refreshTokenSchema.index({ family: 1 });                     // revoke entire family on reuse detection
+refreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL — auto-delete expired tokens
 
 module.exports = mongoose.model("RefreshToken", refreshTokenSchema);

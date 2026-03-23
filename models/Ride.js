@@ -176,14 +176,10 @@ const rideSchema = new mongoose.Schema(
 
 // Cap riderLocations at 50 entries to prevent unbounded document growth
 rideSchema.pre("save", function (next) {
-  if (this.riderLocations && this.riderLocations.length > 50) {
+  if (this.isModified("riderLocations") && this.riderLocations.length > 50) {
     this.riderLocations = this.riderLocations.slice(-50);
   }
-  if (
-    this.route &&
-    this.route.coordinates &&
-    this.route.coordinates.length > 2000
-  ) {
+  if (this.isModified("route.coordinates") && this.route.coordinates.length > 2000) {
     this.route.coordinates = this.route.coordinates.slice(-2000);
   }
   next();

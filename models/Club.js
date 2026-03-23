@@ -55,5 +55,6 @@ const clubSchema = new mongoose.Schema(
 
 clubSchema.index({ owner: 1 });
 clubSchema.index({ members: 1 });
+clubSchema.index({ admins: 1 });
 
 module.exports = mongoose.model("Club", clubSchema);
