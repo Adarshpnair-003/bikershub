@@ -3,31 +3,35 @@ const router = express.Router();
 
 const { protect } = require("../middleware/auth");
 const rideController = require("../controllers/rideController");
+const validate = require("../middleware/validate");
+const { createRideSchema, updateRideSchema, locationSchema } = require("../validators/rideValidator");
 
 /* SPECIAL ROUTES FIRST */
 router.get("/nearby", protect, rideController.getNearbyRides);
 
-/* CREATE */
-router.post("/", protect, rideController.createRide);
+/* LIST */
+router.get("/", rideController.getRides);
 
-/* ROUTE + LIVE */
-router.get("/:rideId/route", protect, rideController.getRideRoute);
-router.get("/:rideId/locations", protect, rideController.getRideLocations);
+/* CREATE */
+router.post("/", protect, validate(createRideSchema), rideController.createRide);
+
+/* JOIN / LEAVE / INVITE */
+router.post("/:rideId/join", protect, rideController.joinRide);
+router.post("/:rideId/leave", protect, rideController.leaveRide);
+router.post("/:rideId/invite/:userId", protect, rideController.inviteToRide);
 
 /* TRACKING */
 router.put("/:rideId/start", protect, rideController.startRide);
-router.put("/:rideId/location", protect, rideController.updateLocation);
+router.put("/:rideId/location", protect, validate(locationSchema), rideController.updateLocation);
 router.put("/:rideId/end", protect, rideController.endRide);
 
-/* JOIN */
-router.post("/join/:rideId", protect, rideController.joinRide);
-router.post("/leave/:rideId", protect, rideController.leaveRide);
-router.post("/invite/:rideId/:userId", protect, rideController.inviteToRide);
+/* ROUTE + LIVE LOCATIONS */
+router.get("/:rideId/route", protect, rideController.getRideRoute);
+router.get("/:rideId/locations", protect, rideController.getRideLocations);
 
 /* GENERAL LAST */
-router.get("/", rideController.getRides);
 router.get("/:rideId", rideController.getRide);
-router.put("/:rideId", protect, rideController.updateRide);
+router.put("/:rideId", protect, validate(updateRideSchema), rideController.updateRide);
 router.delete("/:rideId", protect, rideController.deleteRide);
 
 module.exports = router;

@@ -8,17 +8,17 @@ exports.createClub = catchAsync(async (req, res) => {
 });
 
 exports.getClubDetails = catchAsync(async (req, res) => {
-  const club = await clubService.getDetails(req.params.clubId || req.params.id);
+  const club = await clubService.getDetails(req.params.clubId);
   res.json(apiResponse.success(club));
 });
 
 exports.requestJoinClub = catchAsync(async (req, res) => {
-  const result = await clubService.requestJoin(req.params.id, req.user.id);
+  const result = await clubService.requestJoin(req.params.clubId, req.user.id);
   res.json(apiResponse.success(null, result.msg));
 });
 
 exports.getJoinRequests = catchAsync(async (req, res) => {
-  const requests = await clubService.getJoinRequests(req.params.id, req.user.id);
+  const requests = await clubService.getJoinRequests(req.params.clubId, req.user.id);
   res.json(apiResponse.success(requests));
 });
 

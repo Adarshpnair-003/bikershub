@@ -17,6 +17,11 @@ exports.getSmartFeed = catchAsync(async (req, res) => {
   res.json(apiResponse.paginated(result.posts, result.pagination));
 });
 
+exports.getPost = catchAsync(async (req, res) => {
+  const post = await postService.getById(req.params.id);
+  res.json(apiResponse.success(post));
+});
+
 exports.likePost = catchAsync(async (req, res) => {
   const result = await postService.like(req.params.id, req.user.id, req.io);
   res.json(apiResponse.success(result));

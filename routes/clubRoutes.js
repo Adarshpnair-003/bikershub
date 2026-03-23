@@ -1,22 +1,23 @@
 const express = require("express");
 const router = express.Router();
 const { protect } = require("../middleware/auth");
-
 const clubController = require("../controllers/clubController");
+const validate = require("../middleware/validate");
+const { createClubSchema } = require("../validators/clubValidator");
 
-router.post("/", protect, clubController.createClub);
+router.post("/", protect, validate(createClubSchema), clubController.createClub);
 
-router.post("/:id/join", protect, clubController.requestJoinClub);
+router.post("/:clubId/join", protect, clubController.requestJoinClub);
 
-router.get("/:id/requests", protect, clubController.getJoinRequests);
+router.get("/:clubId/requests", protect, clubController.getJoinRequests);
 
-router.put("/approve/:clubId/:userId", protect, clubController.approveRequest);
+router.put("/:clubId/approve/:userId", protect, clubController.approveRequest);
 
-router.put("/reject/:clubId/:userId", protect, clubController.rejectRequest);
+router.put("/:clubId/reject/:userId", protect, clubController.rejectRequest);
 
-router.put("/leave/:clubId", protect, clubController.leaveClub);
+router.put("/:clubId/leave", protect, clubController.leaveClub);
 
-router.post("/:clubId/post", protect, clubController.createClubPost);
+router.post("/:clubId/posts", protect, clubController.createClubPost);
 
 router.get("/:clubId/posts", clubController.getClubPosts);
 

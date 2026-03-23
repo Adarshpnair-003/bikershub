@@ -3,9 +3,11 @@ const router = express.Router();
 
 const { protect } = require("../middleware/auth");
 const chatCtrl = require("../controllers/chatController");
+const validate = require("../middleware/validate");
+const { sendMessageSchema } = require("../validators/chatValidator");
 
 /* SEND MESSAGE */
-router.post("/send", protect, chatCtrl.sendMessage);
+router.post("/send", protect, validate(sendMessageSchema), chatCtrl.sendMessage);
 
 /* GET MESSAGES OF A CONVERSATION */
 router.get("/conversation/:conversationId", protect, chatCtrl.getMessagesByConversation);

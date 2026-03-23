@@ -63,17 +63,7 @@ app.use((req, res, next) => {
 });
 
 /* ROUTES */
-app.use("/api/auth", require("./routes/authRoutes"));
-app.use("/api/users", require("./routes/userRoutes"));
-app.use("/api/posts", require("./routes/postRoutes"));
-app.use("/api/comments", require("./routes/commentRoutes"));
-app.use("/api/clubs", require("./routes/clubRoutes"));
-app.use("/api/notifications", require("./routes/notificationRoutes"));
-app.use("/api/rides", require("./routes/rideRoutes"));
-app.use("/api/search", require("./routes/searchRoutes"));
-app.use("/api/chat", require("./routes/chatRoutes"));
-app.use("/api/conversations", require("./routes/conversationRoutes"));
-app.use("/api/upload", require("./routes/uploadRoutes"));
+app.use("/api", require("./routes/index"));
 
 /* HEALTH CHECK */
 app.get("/", (req, res) => {

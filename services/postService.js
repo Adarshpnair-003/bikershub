@@ -3,6 +3,7 @@ const Post = require("../models/Post");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
 const AppError = require("../utils/AppError");
+const env = require("../config/env");
 const fs = require("fs");
 
 async function uploadFiles(files) {
@@ -21,7 +22,7 @@ async function uploadFiles(files) {
     public_id: r.public_id,
     type: r.resource_type,
     thumbnail: r.resource_type === "video"
-      ? `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/video/upload/so_1/${r.public_id}.jpg`
+      ? `https://res.cloudinary.com/${env.CLOUDINARY_CLOUD_NAME}/video/upload/so_1/${r.public_id}.jpg`
       : null
   }));
 }
