@@ -3,10 +3,23 @@ const { body, validationResult } = require("express-validator");
 exports.validateRegister = [
 
   body("username")
-    .notEmpty()
-    .withMessage("Username is required")
+    .optional({ values: "falsy" })  // treats "" same as absent
     .isLength({ min: 3 })
     .withMessage("Username must be at least 3 characters"),
+
+  body("name")
+    .optional({ values: "falsy" })  // treats "" same as absent
+    .isLength({ min: 3 })
+    .withMessage("Name must be at least 3 characters"),
+
+  body()
+    .custom((_, { req }) => {
+      const candidate = (req.body.username || req.body.name || "").trim();
+      if (!candidate) {
+        throw new Error("Username is required");
+      }
+      return true;
+    }),
 
   body("email")
     .isEmail()
