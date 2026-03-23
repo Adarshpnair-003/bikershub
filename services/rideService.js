@@ -65,6 +65,13 @@ exports.update = async (rideId, userId, data) => {
   if (ride.createdBy.toString() !== userId) throw new AppError("Not authorized", 403, "FORBIDDEN");
   const allowed = ["title", "description", "startLocation", "destination", "rideDate", "maxParticipants"];
   allowed.forEach(k => { if (data[k] !== undefined) ride[k] = data[k]; });
+  // Re-geocode if location strings changed
+  if (data.startLocation) {
+    ride.startCoords = await geocodeAddress(data.startLocation);
+  }
+  if (data.destination) {
+    ride.destinationCoords = await geocodeAddress(data.destination);
+  }
   await ride.save();
   return ride;
 };
@@ -93,8 +100,10 @@ exports.leave = async (rideId, userId) => {
   const ride = await Ride.findById(rideId);
   if (!ride) throw new AppError("Ride not found", 404, "NOT_FOUND");
   if (ride.createdBy.toString() === userId) throw new AppError("Creator cannot leave the ride", 400, "CREATOR_CANNOT_LEAVE");
+  const before = ride.participants.length;
   ride.participants = ride.participants.filter(p => p.toString() !== userId);
-  ride.participantsCount -= 1;
+  if (ride.participants.length === before) throw new AppError("Not a participant", 400, "NOT_PARTICIPANT");
+  ride.participantsCount = ride.participants.length;
   await ride.save();
 };
 

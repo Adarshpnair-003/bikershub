@@ -1,12 +1,20 @@
 const Message = require("../models/Message");
 const Conversation = require("../models/Conversation");
+const Club = require("../models/Club");
 
 module.exports = function registerChatHandlers(socket, io) {
   /* ============================
      CONVERSATION (DM CHAT)
   ============================ */
-  socket.on("joinConversation", (conversationId) => {
-    socket.join(`conversation:${conversationId}`);
+  socket.on("joinConversation", async (conversationId) => {
+    try {
+      const convo = await Conversation.findById(conversationId).select("participants").lean();
+      if (!convo) return;
+      if (!convo.participants.some(p => p.toString() === socket.user.id.toString())) return;
+      socket.join(`conversation:${conversationId}`);
+    } catch (err) {
+      console.error("[socket] joinConversation error:", err.message);
+    }
   });
 
   socket.on("sendMessage", async (data) => {
@@ -14,13 +22,9 @@ module.exports = function registerChatHandlers(socket, io) {
       const { conversationId, text, type } = data;
       if (!conversationId || !text) return;
 
-      // Authorization: verify sender is a participant
       const convo = await Conversation.findById(conversationId).select("participants").lean();
       if (!convo) return;
-      const isParticipant = convo.participants.some(
-        (p) => p.toString() === socket.user.id.toString()
-      );
-      if (!isParticipant) return; // silently ignore (socket context, not HTTP)
+      if (!convo.participants.some(p => p.toString() === socket.user.id.toString())) return;
 
       const message = await Message.create({
         conversation: conversationId,
@@ -56,8 +60,15 @@ module.exports = function registerChatHandlers(socket, io) {
   /* ============================
      CLUB CHAT
   ============================ */
-  socket.on("joinClubChat", ({ clubId }) => {
-    socket.join(`club:${clubId}`);
+  socket.on("joinClubChat", async ({ clubId }) => {
+    try {
+      const club = await Club.findById(clubId).select("members").lean();
+      if (!club) return;
+      if (!club.members.some(m => m.toString() === socket.user.id.toString())) return;
+      socket.join(`club:${clubId}`);
+    } catch (err) {
+      console.error("[socket] joinClubChat error:", err.message);
+    }
   });
 
   socket.on("sendClubMessage", async (data) => {
@@ -65,15 +76,9 @@ module.exports = function registerChatHandlers(socket, io) {
       const { clubId, text, type } = data;
       if (!clubId || !text) return;
 
-      // Find the club's conversation
       const convo = await Conversation.findOne({ type: "club", club: clubId });
       if (!convo) return;
-
-      // Authorization: verify sender is a participant
-      const isParticipant = convo.participants.some(
-        (p) => p.toString() === socket.user.id.toString()
-      );
-      if (!isParticipant) return; // silently ignore (socket context, not HTTP)
+      if (!convo.participants.some(p => p.toString() === socket.user.id.toString())) return;
 
       const message = await Message.create({
         conversation: convo._id,
@@ -98,8 +103,15 @@ module.exports = function registerChatHandlers(socket, io) {
      RIDE CHAT
      NOTE: Uses ride:{rideId} room (same as ride tracking) for consistency
   ============================ */
-  socket.on("joinRideChat", ({ rideId }) => {
-    socket.join(`ride:${rideId}`);
+  socket.on("joinRideChat", async ({ rideId }) => {
+    try {
+      const convo = await Conversation.findOne({ type: "ride", ride: rideId }).select("participants").lean();
+      if (!convo) return;
+      if (!convo.participants.some(p => p.toString() === socket.user.id.toString())) return;
+      socket.join(`ride:${rideId}`);
+    } catch (err) {
+      console.error("[socket] joinRideChat error:", err.message);
+    }
   });
 
   socket.on("sendRideMessage", async (data) => {
@@ -107,15 +119,9 @@ module.exports = function registerChatHandlers(socket, io) {
       const { rideId, text, type } = data;
       if (!rideId || !text) return;
 
-      // Find the ride's conversation
       const convo = await Conversation.findOne({ type: "ride", ride: rideId });
       if (!convo) return;
-
-      // Authorization: verify sender is a participant
-      const isParticipant = convo.participants.some(
-        (p) => p.toString() === socket.user.id.toString()
-      );
-      if (!isParticipant) return; // silently ignore (socket context, not HTTP)
+      if (!convo.participants.some(p => p.toString() === socket.user.id.toString())) return;
 
       const message = await Message.create({
         conversation: convo._id,

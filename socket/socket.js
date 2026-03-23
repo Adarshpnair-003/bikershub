@@ -29,7 +29,7 @@ const initSocket = (server) => {
   if (env.REDIS_URL) {
     try {
       const { createAdapter } = require("@socket.io/redis-adapter");
-      const { default: Redis } = require("ioredis");
+      const Redis = require("ioredis");
       const pubClient = new Redis(env.REDIS_URL);
       const subClient = pubClient.duplicate();
       io.adapter(createAdapter(pubClient, subClient));

@@ -10,6 +10,7 @@ router.post("/", protect, upload.single("file"), uploadController.uploadFile);
 // Upload multiple files
 router.post(
   "/multiple",
+  protect,
   upload.array("media", 5),
   uploadController.uploadMultipleFiles
 );

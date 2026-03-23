@@ -10,8 +10,15 @@ module.exports = function registerRideHandlers(socket, io) {
      RIDE TRACKING (LIVE GPS)
   ============================ */
 
-  socket.on("joinRide", ({ rideId }) => {
-    socket.join(`ride:${rideId}`);
+  socket.on("joinRide", async ({ rideId }) => {
+    try {
+      const ride = await Ride.findById(rideId).select("participants").lean();
+      if (!ride) return;
+      if (!ride.participants.some(p => p.toString() === socket.user.id.toString())) return;
+      socket.join(`ride:${rideId}`);
+    } catch (err) {
+      console.error("[socket] joinRide error:", err.message);
+    }
   });
 
   socket.on("leaveRide", ({ rideId }) => {
