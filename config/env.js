@@ -12,7 +12,7 @@ const envSchema = Joi.object({
   CLOUDINARY_CLOUD_NAME: Joi.string().required(),
   CLOUDINARY_API_KEY: Joi.string().required(),
   CLOUDINARY_API_SECRET: Joi.string().required(),
-  REDIS_URL: Joi.string().uri().default("redis://localhost:6379"),
+  REDIS_URL: Joi.string().uri().optional(),
   GEOCODER_USER_AGENT: Joi.string().default("BikersHub/1.0 (server geocoder)"),
   ALLOWED_ORIGINS: Joi.string().default("http://localhost:3000"),
   LOG_LEVEL: Joi.string().valid("trace", "debug", "info", "warn", "error").default("info"),
