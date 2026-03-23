@@ -1,59 +1,18 @@
-const Conversation = require("../models/Conversation");
+const conversationService = require("../services/conversationService");
+const catchAsync = require("../utils/catchAsync");
+const apiResponse = require("../utils/apiResponse");
 
-/* CREATE OR GET CONVERSATION */
-exports.createOrGetConversation = async (req, res) => {
-  try {
+exports.createOrGetConversation = catchAsync(async (req, res) => {
+  const conversation = await conversationService.createOrGet(req.user.id, req.body.userId);
+  res.json(apiResponse.success(conversation));
+});
 
-    const { userId } = req.body;
+exports.getMyConversations = catchAsync(async (req, res) => {
+  const conversations = await conversationService.list(req.user.id);
+  res.json(apiResponse.success(conversations));
+});
 
-    let conversation = await Conversation.findOne({
-      members: { $all: [req.user.id, userId] }
-    });
-
-    if (!conversation) {
-
-      conversation = await Conversation.create({
-        members: [req.user.id, userId]
-      });
-
-    }
-
-    res.status(200).json(conversation);
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-
-/* GET ALL CONVERSATIONS FOR LOGGED USER */
-exports.getMyConversations = async (req, res) => {
-  try {
-
-    const conversations = await Conversation.find({
-      members: req.user.id
-    })
-      .populate("members", "username")
-      .sort({ updatedAt: -1 });
-
-    res.json(conversations);
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-
-/* GET SINGLE CONVERSATION */
-exports.getConversation = async (req, res) => {
-  try {
-
-    const conversation = await Conversation.findById(req.params.id)
-      .populate("members", "username");
-
-    res.json(conversation);
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
+exports.getConversation = catchAsync(async (req, res) => {
+  const conversation = await conversationService.getById(req.params.id, req.user.id);
+  res.json(apiResponse.success(conversation));
+});
