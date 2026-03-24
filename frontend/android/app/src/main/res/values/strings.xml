@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BikersHub</string>
+    <string name="title_activity_main">BikersHub</string>
+    <string name="package_name">com.bikershub.app</string>
+    <string name="custom_url_scheme">com.bikershub.app</string>
+</resources>

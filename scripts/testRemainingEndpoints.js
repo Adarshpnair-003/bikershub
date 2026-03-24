@@ -59,6 +59,16 @@ async function step(name, fn, { required = true } = {}) {
   }
 }
 
+function payload(result) {
+  const body = result?.data;
+
+  if (body && typeof body === "object" && Object.prototype.hasOwnProperty.call(body, "data")) {
+    return body.data;
+  }
+
+  return body;
+}
+
 function summary() {
   const requiredFails = results.filter((r) => r.required && !r.pass);
   const optionalFails = results.filter((r) => !r.required && !r.pass);
@@ -112,10 +122,13 @@ async function run() {
     })
   );
 
-  const tokenA = loginA?.data?.token;
-  const tokenB = loginB?.data?.token;
-  const userA = loginA?.data?.user?.id;
-  const userB = loginB?.data?.user?.id;
+  const loginPayloadA = payload(loginA);
+  const loginPayloadB = payload(loginB);
+
+  const tokenA = loginPayloadA?.token;
+  const tokenB = loginPayloadB?.token;
+  const userA = loginPayloadA?.user?.id;
+  const userB = loginPayloadB?.user?.id;
 
   if (!tokenA || !tokenB || !userA || !userB) {
     console.log("Cannot continue; auth bootstrap failed.");
@@ -136,7 +149,7 @@ async function run() {
     })
   );
 
-  const postId = createPost?.data?._id;
+  const postId = payload(createPost)?._id;
 
   await step("posts get all", () => api("/posts", { token: tokenA }));
   await step("posts smart feed", () => api("/posts/feed", { token: tokenA }));
@@ -154,7 +167,7 @@ async function run() {
 
     await step("comments list", () => api(`/comments/${postId}`, { token: tokenA }));
 
-    const commentId = createComment?.data?._id;
+    const commentId = payload(createComment)?._id;
     if (commentId) {
       await step("comments like", () => api(`/comments/like/${commentId}`, { method: "PUT", token: tokenA }));
       await step("comments delete", () => api(`/comments/${commentId}`, { method: "DELETE", token: tokenA }));
@@ -187,7 +200,7 @@ async function run() {
     })
   );
 
-  const clubId = createClub?.data?._id;
+  const clubId = payload(createClub)?._id;
 
   if (clubId) {
     await step("clubs request join", () => api(`/clubs/${clubId}/join`, { method: "POST", token: tokenB }));
@@ -221,7 +234,8 @@ async function run() {
     { required: false }
   );
 
-  const rideId = createRide?.data?.ride?._id;
+  const ridePayload = payload(createRide);
+  const rideId = ridePayload?.ride?._id || ridePayload?._id;
 
   await step("rides get all", () => api("/rides", { token: tokenA }));
 
@@ -248,7 +262,7 @@ async function run() {
     })
   );
 
-  const conversationId = conversation?.data?._id;
+  const conversationId = payload(conversation)?._id;
 
   await step("conversations list mine", () => api("/conversations", { token: tokenA }));
 
