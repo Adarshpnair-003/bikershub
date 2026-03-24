@@ -14,8 +14,9 @@ exports.createComment = catchAsync(async (req, res) => {
 });
 
 exports.getComments = catchAsync(async (req, res) => {
-  const comments = await commentService.getByPost(req.params.postId, { page: req.query.page });
-  res.json(apiResponse.success(comments));
+  const { page, limit } = req.query;
+  const { comments, pagination } = await commentService.getByPost(req.params.postId, { page, limit });
+  res.json(apiResponse.paginated(comments, pagination, "Comments fetched"));
 });
 
 exports.likeComment = catchAsync(async (req, res) => {

@@ -26,13 +26,25 @@ exports.create = async ({ postId, content, parentComment, authorId, io }) => {
 
 exports.getByPost = async (postId, { page = 1, limit = 10 } = {}) => {
   const skip = (page - 1) * limit;
-  const comments = await Comment.find({ post: postId, parentComment: null, isDeleted: false })
-    .populate("author", "username profilePic")
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean();
-  return comments;
+  const [comments, total] = await Promise.all([
+    Comment.find({ post: postId, parentComment: null, isDeleted: false })
+      .populate("author", "username profilePic")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .lean(),
+    Comment.countDocuments({ post: postId, parentComment: null, isDeleted: false })
+  ]);
+  return {
+    comments,
+    pagination: {
+      page: Number(page),
+      limit: Number(limit),
+      total,
+      totalPages: Math.ceil(total / limit),
+      hasMore: skip + comments.length < total
+    }
+  };
 };
 
 exports.like = async (commentId, userId, io) => {

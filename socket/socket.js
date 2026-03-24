@@ -47,7 +47,7 @@ const initSocket = (server) => {
         socket.handshake.headers?.authorization?.split(" ")[1];
       if (!token) return next(new Error("Authentication required"));
       const decoded = jwt.verify(token, env.JWT_SECRET);
-      socket.user = { id: decoded.id };
+      socket.user = { id: decoded.id, tokenExp: decoded.exp };
       next();
     } catch {
       next(new Error("Invalid or expired token"));
@@ -57,6 +57,17 @@ const initSocket = (server) => {
   io.on("connection", (socket) => {
     // Automatically join personal notification room on connect
     socket.join(`user:${socket.user.id}`);
+
+    // Disconnect socket when JWT expires — prevents long-lived stale connections
+    if (socket.user.tokenExp) {
+      const msUntilExpiry = socket.user.tokenExp * 1000 - Date.now();
+      if (msUntilExpiry > 0) {
+        setTimeout(() => socket.disconnect(true), msUntilExpiry);
+      } else {
+        socket.disconnect(true);
+        return;
+      }
+    }
 
     registerChatHandlers(socket, io);
     registerRideHandlers(socket, io);

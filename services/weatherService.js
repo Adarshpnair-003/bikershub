@@ -34,17 +34,22 @@ const getWeather = async (lat, lng) => {
     throw new AppError("Weather service unavailable", 503, "SERVICE_UNAVAILABLE");
   }
 
+  // Guard against unexpected OWM response shapes
+  if (!data?.main || !data?.wind || !data?.weather?.[0]) {
+    throw new AppError("Weather service unavailable", 503, "SERVICE_UNAVAILABLE");
+  }
+
   return {
     temp: data.main.temp,
     feelsLike: data.main.feels_like,
     humidity: data.main.humidity,
     wind: {
       speed: data.wind.speed,
-      direction: data.wind.deg,
+      direction: data.wind.deg ?? null,
     },
     description: data.weather[0].description,
     icon: data.weather[0].icon,
-    city: data.name,
+    city: data.name ?? null,
   };
 };
 
