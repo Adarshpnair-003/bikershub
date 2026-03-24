@@ -1,6 +1,8 @@
 const express = require("express");
 const http = require("http");
 const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const path = require("path");
 const fs = require("fs");
 require("dotenv").config();
@@ -14,8 +16,45 @@ connectDB();
 const app = express();
 
 /* MIDDLEWARES */
-app.use(express.json());
-app.use(cors());
+const corsOrigins = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || corsOrigins.length === 0 || corsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error("Not allowed by CORS"));
+  },
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: false
+};
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.API_RATE_LIMIT_MAX) || 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { msg: "Too many requests, please try again later." }
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { msg: "Too many auth attempts, please try again later." }
+});
+
+app.disable("x-powered-by");
+app.use(helmet({ crossOriginResourcePolicy: false }));
+app.use(cors(corsOptions));
+app.use(express.json({ limit: "1mb" }));
+app.use("/api", apiLimiter);
 
 /* CREATE HTTP SERVER */
 const server = http.createServer(app);
@@ -32,7 +71,7 @@ app.use((req, res, next) => {
 console.log("Routes initialized");
 
 /* ROUTES */
-app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/auth", authLimiter, require("./routes/authRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/posts", require("./routes/postRoutes"));
 app.use("/api/comments", require("./routes/commentRoutes"));
@@ -64,17 +103,25 @@ app.use((req, res) => {
   res.status(404).json({ msg: "Route not found" });
 });
 
-/* GLOBAL ERROR HANDLER (VERY IMPORTANT) */
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ msg: "Server error" });
-});
+  if (err.message === "Not allowed by CORS") {
+    return res.status(403).json({ msg: "CORS origin denied" });
+  }
 
-app.use((err, req, res, next) => {
   if (err.message === "Only images and videos allowed") {
     return res.status(400).json({ msg: err.message });
   }
   next(err);
+});
+
+/* GLOBAL ERROR HANDLER (VERY IMPORTANT) */
+app.use((err, req, res, next) => {
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  console.error(err.stack);
+  res.status(500).json({ msg: "Server error" });
 });
 
 /* START SERVER */

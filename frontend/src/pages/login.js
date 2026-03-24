@@ -103,7 +103,7 @@ export function mount() {
 
       if (data.success && data.data) {
         setTokens(data.data.token, data.data.refreshToken);
-        setCurrentUser(data.data.user._id, data.data.user.username);
+        setCurrentUser(data.data.user.id, data.data.user.username);
         navigate('/home');
       } else {
         alert(data.error?.message || data.message || 'Login failed. Please try again.');

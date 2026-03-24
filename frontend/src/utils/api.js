@@ -118,7 +118,15 @@ function normalizeResponse(data, httpStatus) {
 
   // Auth login/google response: has both `token` and `user` at root
   if (data?.token && data?.user) {
-    return { success: true, data: { token: data.token, user: data.user }, message: data.msg };
+    return {
+      success: true,
+      data: {
+        token: data.token,
+        refreshToken: data.refreshToken,
+        user: data.user,
+      },
+      message: data.msg,
+    };
   }
 
   // Register response: has userId

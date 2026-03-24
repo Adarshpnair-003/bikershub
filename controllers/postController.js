@@ -3,15 +3,38 @@ const User = require("../models/User");
 const Notification = require("../models/Notification");
 const { getIO } = require("../socket/socket");
 const cloudinary = require("../config/cloudinary"); // ✅ ADD THIS
-const fs = require("fs");
+const fs = require("fs/promises");
+
+const cleanupLocalFiles = async files => {
+  if (!files || files.length === 0) return;
+
+  await Promise.all(
+    files
+      .map(file => file && file.path)
+      .filter(Boolean)
+      .map(async filePath => {
+        try {
+          await fs.unlink(filePath);
+        } catch (err) {
+          if (err.code !== "ENOENT") {
+            console.warn(`TEMP FILE CLEANUP FAILED: ${filePath}`, err.message);
+          }
+        }
+      })
+  );
+};
 
 /* CREATE POST WITH MEDIA */
 exports.createPost = async (req, res) => {
   try {
     const files = req.files;
     const body = req.body || {};
-    const content = body.content || body.text;
+    const content = (body.content || body.text || "").trim();
     let media = [];
+
+    if (!content && (!files || files.length === 0)) {
+      return res.status(400).json({ msg: "Post content or media is required" });
+    }
 
     // ✅ HANDLE MULTIPLE MEDIA UPLOAD
     if (files && files.length > 0) {
@@ -41,9 +64,7 @@ exports.createPost = async (req, res) => {
 }));
 
       // 🧹 DELETE TEMP FILES
-      files.forEach(file => {
-        if (file.path) fs.unlinkSync(file.path);
-      });
+      await cleanupLocalFiles(files);
     }
 
     // ✅ CREATE POST
@@ -66,11 +87,7 @@ exports.createPost = async (req, res) => {
     console.error("CREATE POST ERROR:", error);
 
     // ⚠️ CLEANUP IF ERROR
-    if (req.files) {
-      req.files.forEach(file => {
-        if (file.path) fs.unlinkSync(file.path);
-      });
-    }
+    await cleanupLocalFiles(req.files);
 
     res.status(500).json({ error: error.message });
   }
@@ -174,10 +191,13 @@ exports.getSmartFeed = async (req, res) => {
     });
 
     res.json({
-      currentPage: page,
-      totalPages: Math.ceil(totalPosts / limit),
-      totalPosts,
-      posts
+      success: true,
+      data: {
+        currentPage: page,
+        totalPages: Math.ceil(totalPosts / limit),
+        totalPosts,
+        posts
+      }
     });
 
   } catch (err) {
@@ -208,7 +228,11 @@ exports.deletePost = async (req, res) => {
 
     await post.deleteOne();
 
-    res.json({ msg: "Post deleted successfully" });
+    res.json({
+      success: true,
+      data: { postId: post._id },
+      message: "Post deleted successfully"
+    });
 
   } catch (error) {
     console.error("DELETE POST ERROR:", error);
@@ -262,9 +286,7 @@ exports.updatePost = async (req, res) => {
       }));
 
       // 🧹 delete temp files
-      files.forEach(file => {
-        if (file.path) fs.unlinkSync(file.path);
-      });
+      await cleanupLocalFiles(files);
     }
 
     // ✏️ UPDATE FIELDS
@@ -272,11 +294,17 @@ exports.updatePost = async (req, res) => {
     post.media = media;
 
     await post.save();
+    const populatedPost = await post.populate("author", "username email");
 
-    res.json(post);
+    res.json({
+      success: true,
+      data: populatedPost,
+      message: "Post updated"
+    });
 
   } catch (error) {
     console.error("UPDATE POST ERROR:", error);
+    await cleanupLocalFiles(req.files);
     res.status(500).json({ error: error.message });
   }
 };

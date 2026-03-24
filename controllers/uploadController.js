@@ -1,5 +1,22 @@
 const cloudinary = require("../config/cloudinary");
-const fs = require("fs"); // ✅ ADD THIS
+const fs = require("fs/promises");
+const User = require("../models/User");
+
+const safeUnlink = async (filePath) => {
+  if (!filePath) return;
+
+  try {
+    await fs.unlink(filePath);
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.warn(`TEMP FILE CLEANUP FAILED: ${filePath}`, error.message);
+    }
+  }
+};
+
+const safeUnlinkMany = async (files = []) => {
+  await Promise.all(files.map((file) => safeUnlink(file && file.path)));
+};
 
 exports.uploadFile = async (req, res) => {
   try {
@@ -12,8 +29,7 @@ exports.uploadFile = async (req, res) => {
       resource_type: "auto"
     });
 
-    // ✅ DELETE TEMP FILE (IMPORTANT)
-    fs.unlinkSync(req.file.path);
+    await safeUnlink(req.file.path);
 
     res.json({
       success: true,
@@ -23,18 +39,13 @@ exports.uploadFile = async (req, res) => {
   } catch (error) {
     console.error(error);
 
-    // ⚠️ also delete file if error happens
-    if (req.file && req.file.path) {
-      fs.unlinkSync(req.file.path);
-    }
+    await safeUnlink(req.file?.path);
 
-   console.error(error); // 👈 KEEP THIS
-res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 };
 
 exports.uploadMultipleFiles = async (req, res) => {
-    console.log("FILES:", req.files);
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ msg: "No files uploaded" });
@@ -49,8 +60,7 @@ exports.uploadMultipleFiles = async (req, res) => {
       )
     );
 
-    // delete temp files
-    req.files.forEach(file => fs.unlinkSync(file.path));
+    await safeUnlinkMany(req.files);
 
     const media = results.map(item => ({
       url: item.secure_url,
@@ -66,20 +76,19 @@ exports.uploadMultipleFiles = async (req, res) => {
   } catch (error) {
     console.error(error);
 
-    if (req.files) {
-      req.files.forEach(file => {
-        if (file.path) fs.unlinkSync(file.path);
-      });
-    }
+    await safeUnlinkMany(req.files || []);
 
-    console.error(error); // 👈 KEEP THIS
-res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 };
 
 exports.uploadProfilePic = async (req, res) => {
   try {
-    const user = req.user; // assuming auth middleware
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
 
     if (!req.file) {
       return res.status(400).json({ msg: "No file uploaded" });
@@ -94,7 +103,7 @@ exports.uploadProfilePic = async (req, res) => {
       folder: "bikerhub/profile"
     });
 
-    fs.unlinkSync(req.file.path);
+    await safeUnlink(req.file.path);
 
     user.profilePic = {
       url: result.secure_url,
@@ -111,10 +120,9 @@ exports.uploadProfilePic = async (req, res) => {
   } catch (error) {
     console.error(error);
 
-    if (req.file?.path) fs.unlinkSync(req.file.path);
+    await safeUnlink(req.file?.path);
 
-    console.error(error); // 👈 KEEP THIS
-res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 };
 

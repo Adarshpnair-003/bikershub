@@ -23,6 +23,20 @@ router.post(
   authController.login
 );
 
+/* ================= REFRESH TOKEN ================= */
+router.post(
+  "/refresh",
+  [
+    body("refreshToken")
+      .optional()
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage("Refresh token is required")
+  ],
+  authController.refreshAccessToken
+);
+
 /* ================= GOOGLE LOGIN ================= */
 router.post("/google", authController.googleAuth);
 

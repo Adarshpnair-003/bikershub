@@ -26,8 +26,17 @@ export function getToken() {
  * @param {string} refreshToken
  */
 export function setTokens(accessToken, refreshToken) {
-  localStorage.setItem(KEYS.accessToken, accessToken);
-  localStorage.setItem(KEYS.refreshToken, refreshToken);
+  if (accessToken) {
+    localStorage.setItem(KEYS.accessToken, accessToken);
+  } else {
+    localStorage.removeItem(KEYS.accessToken);
+  }
+
+  if (refreshToken && refreshToken !== 'null' && refreshToken !== 'undefined') {
+    localStorage.setItem(KEYS.refreshToken, refreshToken);
+  } else {
+    localStorage.removeItem(KEYS.refreshToken);
+  }
 }
 
 /**

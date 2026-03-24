@@ -8,7 +8,7 @@
 
 import { io } from 'socket.io-client';
 import { API_BASE_URL } from './api.js';
-import { getToken } from './auth.js';
+import { getToken, setTokens } from './auth.js';
 
 /** @type {import('socket.io-client').Socket | null} */
 let socket = null;
@@ -34,10 +34,7 @@ async function refreshAccessToken() {
 
     const data = await res.json();
     if (data.success && data.data) {
-      localStorage.setItem('bh_access_token', data.data.token);
-      if (data.data.refreshToken) {
-        localStorage.setItem('bh_refresh_token', data.data.refreshToken);
-      }
+      setTokens(data.data.token, data.data.refreshToken || refreshToken);
       return true;
     }
 

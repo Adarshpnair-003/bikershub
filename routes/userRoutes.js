@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
+const { param } = require("express-validator");
 const protect = require("../middleware/authMiddleware");
+const validateRequest = require("../middleware/validateRequest");
 
 const userController = require("../controllers/userController");
 
@@ -8,12 +10,30 @@ const userController = require("../controllers/userController");
 router.get("/me", protect, userController.getCurrentUser);
 
 /* GET USER PROFILE */
-router.get("/:id", protect, userController.getUserProfile);
+router.get(
+	"/:id",
+	protect,
+	[param("id").isMongoId().withMessage("Valid user id is required")],
+	validateRequest,
+	userController.getUserProfile
+);
 
 /* FOLLOW USER */
-router.put("/follow/:id", protect, userController.followUser);
+router.put(
+	"/follow/:id",
+	protect,
+	[param("id").isMongoId().withMessage("Valid user id is required")],
+	validateRequest,
+	userController.followUser
+);
 
 /* UNFOLLOW USER */
-router.put("/unfollow/:id", protect, userController.unfollowUser);
+router.put(
+	"/unfollow/:id",
+	protect,
+	[param("id").isMongoId().withMessage("Valid user id is required")],
+	validateRequest,
+	userController.unfollowUser
+);
 
 module.exports = router;
