@@ -4,9 +4,12 @@ const Notification = require("../models/Notification");
 const Conversation = require("../models/Conversation");
 const AppError = require("../utils/AppError");
 
-exports.create = async (ownerId, { name, description, location, isPrivate }) => {
+exports.create = async (ownerId, { name, description, location, locationName, isPrivate }) => {
   if (await Club.findOne({ name })) throw new AppError("Club name already exists", 400, "DUPLICATE_NAME");
-  const club = await Club.create({ name, description, location, isPrivate, owner: ownerId, admins: [ownerId], members: [ownerId] });
+  const clubData = { name, description, isPrivate, owner: ownerId, admins: [ownerId], members: [ownerId] };
+  if (location) clubData.location = location;
+  if (locationName) clubData.locationName = locationName;
+  const club = await Club.create(clubData);
   await Conversation.create({ type: "club", club: club._id, participants: [ownerId] });
   return club;
 };
@@ -81,4 +84,17 @@ exports.createPost = async (clubId, authorId, content) => {
 
 exports.getPosts = async (clubId) => {
   return Post.find({ club: clubId }).populate("author", "username profilePic").sort({ createdAt: -1 }).lean();
+};
+
+exports.getNearby = async ({ lat, lng, radius = 25 }) => {
+  const clubs = await Club.find({
+    location: {
+      $near: {
+        $geometry: { type: "Point", coordinates: [parseFloat(lng), parseFloat(lat)] },
+        $maxDistance: radius * 1000
+      }
+    },
+    "location.coordinates.0": { $ne: 0 }
+  }).select("name description location locationName members").limit(20).lean();
+  return clubs;
 };

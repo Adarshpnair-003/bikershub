@@ -46,3 +46,8 @@ exports.getClubPosts = catchAsync(async (req, res) => {
   const posts = await clubService.getPosts(req.params.clubId);
   res.json(apiResponse.success(posts));
 });
+
+exports.getNearbyClubs = catchAsync(async (req, res) => {
+  const clubs = await clubService.getNearby(req.query);
+  res.json(apiResponse.success(clubs, "Nearby clubs"));
+});

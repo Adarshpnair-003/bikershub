@@ -3,7 +3,9 @@ const router = express.Router();
 const { protect } = require("../middleware/auth");
 const clubController = require("../controllers/clubController");
 const validate = require("../middleware/validate");
-const { createClubSchema } = require("../validators/clubValidator");
+const { createClubSchema, nearbySchema } = require("../validators/clubValidator");
+
+router.get("/nearby", validate(nearbySchema, "query"), clubController.getNearbyClubs);
 
 router.post("/", protect, validate(createClubSchema), clubController.createClub);
 
