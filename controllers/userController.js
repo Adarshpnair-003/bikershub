@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const Notification = require("../models/Notification");
+const Post = require("../models/Post");
 
 /* GET CURRENT USER */
 exports.getCurrentUser = async (req, res) => {
@@ -90,17 +91,6 @@ exports.unfollowUser = async (req, res) => {
   }
 };
 
-/* OTHER USER PROFILE VIEW */
-exports.getUserProfile = async (req, res) => {
-
-  const user = await User.findById(req.params.id)
-    .select("-password")
-    .populate("followers following", "username");
-
-  res.json(user);
-
-};
-
 /* GET USER PROFILE */
 exports.getUserProfile = async (req, res) => {
   try {
@@ -118,6 +108,10 @@ exports.getUserProfile = async (req, res) => {
     /* CHECK FOLLOW STATUS */
 
     const currentUser = await User.findById(req.user.id);
+
+    if (!currentUser) {
+      return res.status(404).json({ msg: "Current user not found" });
+    }
 
     const isFollowing = currentUser.following.includes(user._id);
 

@@ -4,11 +4,10 @@ const router = express.Router();
 const protect = require("../middleware/authMiddleware");
 const postController = require("../controllers/postController");
 const upload = require("../middleware/upload");
-const authMiddleware = require("../middleware/authMiddleware");
 
 router.post(
   "/create",
-  authMiddleware,
+  protect,
   upload.array("media", 5),
   postController.createPost
 );
@@ -26,20 +25,13 @@ router.put("/like/:id", protect, postController.likePost);
 
 router.delete(
   "/:id",
-  authMiddleware,
+  protect,
   postController.deletePost
 );
 
-
-router.post(
-  "/create",
-  authMiddleware,
-  upload.array("media", 5), // 🔥 reuse same multer
-  postController.createPost
-);
 router.put(
   "/:id",
-  authMiddleware,
+  protect,
   upload.array("media", 5),
   postController.updatePost
 );

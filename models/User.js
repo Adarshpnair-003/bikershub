@@ -1,10 +1,19 @@
 const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
 
 const userSchema = new mongoose.Schema(
 {
-    name: {
+    username: {
         type: String,
         required: true,
+        unique: true,  // unique already creates an index — no need for index: true
+        trim: true,
+        minlength: 3
+    },
+
+    // Kept for backward compatibility with existing records/controllers.
+    name: {
+        type: String,
         trim: true
     },
 
@@ -16,22 +25,39 @@ const userSchema = new mongoose.Schema(
     },
 
     password: {
-        type: String,
-        required: true
+        type: String
+        // Not required — Google OAuth users have no password
     },
 
     phone: {
         type: String
     },
 
-    avatar: {
+    profilePic: {
+        url: {
+            type: String,
+            default: ""
+        },
+        public_id: {
+            type: String,
+            default: ""
+        }
+    },
+
+    googleId: {
         type: String,
-        default: ""
+        sparse: true  // sparse index — only indexes docs where googleId exists (not null/undefined)
+    },
+
+    isSocialLogin: {
+        type: Boolean,
+        default: false
     },
 
     bio: {
         type: String,
-        default: ""
+        default: "",
+        maxlength: 500
     },
 
     role: {
@@ -39,6 +65,20 @@ const userSchema = new mongoose.Schema(
         enum: ["user", "admin"],
         default: "user"
     },
+
+    followers: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User"
+        }
+    ],
+
+    following: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User"
+        }
+    ],
 
     ridesCreated: [
         {
@@ -82,5 +122,21 @@ const userSchema = new mongoose.Schema(
 },
 { timestamps: true }
 );
+
+userSchema.pre("validate", function syncNameFields() {
+    if (!this.username && this.name) {
+        this.username = this.name;
+    }
+    if (!this.name && this.username) {
+        this.name = this.username;
+    }
+});
+
+userSchema.pre("save", async function hashPassword() {
+    if (!this.isModified("password") || !this.password) {
+        return;
+    }
+    this.password = await bcrypt.hash(this.password, 12);
+});
 
 module.exports = mongoose.model("User", userSchema);

@@ -175,7 +175,5 @@ const rideSchema = new mongoose.Schema(
 // 🔍 For nearby ride search
 rideSchema.index({ startCoords: "2dsphere" });
 rideSchema.index({ destinationCoords: "2dsphere" });
-// 🗺️ For route-based geo queries (optional but useful)
-rideSchema.index({ route: "2dsphere" });
 
 module.exports = mongoose.model("Ride", rideSchema);

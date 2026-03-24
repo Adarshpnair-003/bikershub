@@ -16,7 +16,4 @@ router.put("/follow/:id", protect, userController.followUser);
 /* UNFOLLOW USER */
 router.put("/unfollow/:id", protect, userController.unfollowUser);
 
-/* OTHER USER PROFILE VIEW */
-router.get("/:id", userController.getUserProfile);
-
 module.exports = router;

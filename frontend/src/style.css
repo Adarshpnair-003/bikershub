@@ -1,0 +1,890 @@
+/* ========================================
+   Bikers Hub — Mobile-First Design System
+   ======================================== */
+
+/* --- Reset + Base --- */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: 'Nunito', sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+img, svg {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+input, textarea {
+  font-family: inherit;
+}
+
+/* --- App Shell --- */
+.app {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.page {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.page-light {
+  background: #ffffff;
+  color: #1a1a1a;
+}
+
+.page-dark {
+  background: #0d1117;
+  color: #f9fafb;
+}
+
+/* --- Page Transition --- */
+.page-enter {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========================================
+   AUTH SCREENS (Light Theme)
+   ======================================== */
+
+.auth-container {
+  padding: 40px 28px;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.auth-logo {
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 800;
+  font-size: 28px;
+  color: #1a1a1a;
+  text-align: center;
+  margin-bottom: 48px;
+  letter-spacing: 1px;
+}
+
+.auth-logo .logo-accent {
+  color: #E53935;
+}
+
+.auth-title {
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 800;
+  font-size: 28px;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+}
+
+.auth-subtitle {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 32px;
+}
+
+.auth-input-group {
+  margin-bottom: 20px;
+}
+
+.auth-input-label {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.auth-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #f5f5f5;
+  border-radius: 28px;
+  border: 1.5px solid #e5e5e5;
+  padding: 0 16px;
+  height: 52px;
+  transition: border-color 0.2s;
+}
+
+.auth-input-wrap:focus-within {
+  border-color: #E53935;
+}
+
+.auth-input-wrap input {
+  border: none;
+  background: transparent;
+  flex: 1;
+  font-family: 'Nunito', sans-serif;
+  font-size: 15px;
+  outline: none;
+  color: #1a1a1a;
+  height: 100%;
+}
+
+.auth-input-wrap input::placeholder {
+  color: #9ca3af;
+}
+
+.auth-input-icon {
+  width: 20px;
+  height: 20px;
+  color: #9ca3af;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.auth-input-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.auth-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+  font-size: 13px;
+}
+
+.auth-row a {
+  color: #E53935;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.auth-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6b7280;
+}
+
+.auth-checkbox input[type=checkbox] {
+  width: 16px;
+  height: 16px;
+  accent-color: #E53935;
+}
+
+.auth-btn {
+  width: 100%;
+  height: 56px;
+  border: none;
+  border-radius: 28px;
+  background: #E53935;
+  color: white;
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 16px rgba(229, 57, 53, 0.3);
+}
+
+.auth-btn:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 8px rgba(229, 57, 53, 0.2);
+}
+
+.auth-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 28px 0;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e5e5e5;
+}
+
+.auth-social-btn {
+  width: 100%;
+  height: 52px;
+  border: 1.5px solid #e5e5e5;
+  border-radius: 28px;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  cursor: pointer;
+  margin-bottom: 12px;
+  transition: background 0.15s;
+}
+
+.auth-social-btn:active {
+  background: #f5f5f5;
+}
+
+.auth-social-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.auth-footer {
+  text-align: center;
+  margin-top: 32px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.auth-footer a {
+  color: #E53935;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.auth-error {
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 13px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+/* ========================================
+   DARK APP SCREENS
+   ======================================== */
+
+.app-header {
+  padding: 16px 20px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+  background: #0d1117;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-header-title {
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 800;
+  font-size: 18px;
+  color: #f9fafb;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-header-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #f9fafb;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.app-header-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* --- Tab Pills --- */
+.tab-pills {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  padding: 12px 20px;
+  background: #0d1117;
+}
+
+.tab-pill {
+  font-family: 'Nunito', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #9ca3af;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 16px;
+  border-radius: 20px;
+  transition: all 0.2s;
+}
+
+.tab-pill.active {
+  background: #E53935;
+  color: white;
+}
+
+/* --- Section Labels --- */
+.section-label {
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #9ca3af;
+  padding: 12px 20px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-label::before,
+.section-label::after {
+  content: '';
+  flex: 0 0 8px;
+  height: 1px;
+  background: #374151;
+}
+
+.section-label::after {
+  flex: 1;
+}
+
+/* ========================================
+   HORIZONTAL SCROLL CARDS
+   ======================================== */
+
+.hscroll {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 0 20px 16px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hscroll::-webkit-scrollbar {
+  display: none;
+}
+
+.club-card {
+  flex: 0 0 180px;
+  scroll-snap-align: start;
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  height: 120px;
+  background-size: cover;
+  background-position: center;
+  background-color: #374151;
+}
+
+.club-card-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.club-card-name {
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: white;
+}
+
+.club-card-meta {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+.club-card-join {
+  background: #E53935;
+  color: white;
+  border: none;
+  border-radius: 16px;
+  padding: 5px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 6px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+/* ========================================
+   POST CARD (Dark)
+   ======================================== */
+
+.post-card-dark {
+  background: #0d1117;
+  padding: 0;
+  border-bottom: 1px solid #1f2937;
+}
+
+.post-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+}
+
+.post-card-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #374151;
+  object-fit: cover;
+}
+
+.post-card-info {
+  flex: 1;
+}
+
+.post-card-author {
+  font-weight: 700;
+  font-size: 14px;
+  color: #f9fafb;
+}
+
+.post-card-time {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.post-card-image {
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  background: #1f2937;
+}
+
+.post-card-actions {
+  display: flex;
+  gap: 20px;
+  padding: 12px 20px;
+  align-items: center;
+}
+
+.post-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #f9fafb;
+  font-size: 13px;
+}
+
+.post-action-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+.post-action-btn.liked {
+  color: #E53935;
+}
+
+.post-card-likes {
+  padding: 0 20px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #f9fafb;
+}
+
+.post-card-caption {
+  padding: 4px 20px 14px;
+  font-size: 14px;
+  color: #d1d5db;
+  line-height: 1.5;
+}
+
+.post-card-caption strong {
+  color: #f9fafb;
+  font-weight: 700;
+}
+
+/* ========================================
+   BOTTOM TAB BAR
+   ======================================== */
+
+.tab-bar {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  height: 60px;
+  background: #0d1117;
+  border-top: 1px solid #1f2937;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+
+.tab-bar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: #6b7280;
+  padding: 6px 12px;
+  transition: color 0.2s;
+  position: relative;
+}
+
+.tab-bar-item.active {
+  color: #E53935;
+}
+
+.tab-bar-item svg {
+  width: 24px;
+  height: 24px;
+}
+
+.tab-bar-item span {
+  font-size: 10px;
+  font-weight: 600;
+  font-family: 'Nunito', sans-serif;
+}
+
+/* Active tab red dot indicator */
+.tab-bar-dot {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #E53935;
+  box-shadow: 0 0 6px rgba(229, 57, 53, 0.6);
+}
+
+/* Create button (center tab) */
+.tab-bar-create {
+  color: #fff !important;
+}
+
+.tab-bar-create-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #E53935;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(229, 57, 53, 0.4);
+  transition: transform 0.15s;
+}
+
+.tab-bar-create-circle svg {
+  width: 22px;
+  height: 22px;
+}
+
+.tab-bar-create:active .tab-bar-create-circle {
+  transform: scale(0.92);
+}
+
+.tab-bar-spacer {
+  height: 60px;
+}
+
+/* ========================================
+   RIDE CARDS
+   ======================================== */
+
+.ride-card {
+  background: #1f2937;
+  border-radius: 16px;
+  padding: 16px;
+  margin: 0 20px 12px;
+}
+
+.ride-card-title {
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #f9fafb;
+  margin-bottom: 6px;
+}
+
+.ride-card-meta {
+  font-size: 12px;
+  color: #9ca3af;
+  display: flex;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.ride-card-btn {
+  background: #E53935;
+  color: white;
+  border: none;
+  border-radius: 20px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ========================================
+   LOADING + EMPTY STATES
+   ======================================== */
+
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
+}
+
+.loading-spinner::after {
+  content: '';
+  width: 28px;
+  height: 28px;
+  border: 3px solid #374151;
+  border-top-color: #E53935;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 20px;
+  color: #6b7280;
+}
+
+.empty-state-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.empty-state-text {
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+/* ========================================
+   UTILITY
+   ======================================== */
+
+.hidden {
+  display: none;
+}
+
+/* Scrollbar styling for dark pages */
+.page-dark::-webkit-scrollbar {
+  width: 4px;
+}
+
+.page-dark::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.page-dark::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 2px;
+}
+
+/* Safe area padding utility */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ========================================
+   POST CARD EXTRAS
+   ======================================== */
+
+.post-card-comments-link {
+  padding: 0 20px 12px;
+  font-size: 13px;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.read-more {
+  color: #6b7280;
+  cursor: pointer;
+}
+
+/* ========================================
+   PROFILE PAGE
+   ======================================== */
+
+.profile-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px;
+  gap: 12px;
+}
+
+.profile-avatar-lg {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: #374151;
+  object-fit: cover;
+}
+
+.profile-username {
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  color: #f9fafb;
+}
+
+.profile-email {
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+.profile-edit-btn {
+  background: #E53935;
+  color: white;
+  border: none;
+  border-radius: 28px;
+  padding: 12px 32px;
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+.profile-logout-btn {
+  background: #374151;
+  color: #f9fafb;
+  border: none;
+  border-radius: 28px;
+  padding: 12px 32px;
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* ========================================
+   SEARCH PAGE
+   ======================================== */
+
+.search-container {
+  padding: 16px 20px;
+}
+
+.search-input {
+  width: 100%;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 15px;
+  color: #f9fafb;
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: #6b7280;
+}
+
+.search-input:focus {
+  border-color: #E53935;
+}
+
+.search-subtitle {
+  text-align: center;
+  font-size: 14px;
+  color: #6b7280;
+  margin-top: 16px;
+}
+
+/* ========================================
+   MAPS PLACEHOLDER
+   ======================================== */
+
+.maps-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+}
+
+.maps-placeholder-title {
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  color: #f9fafb;
+  margin-bottom: 8px;
+}
+
+.maps-placeholder-subtitle {
+  font-size: 14px;
+  color: #6b7280;
+}

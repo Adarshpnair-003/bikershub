@@ -9,6 +9,8 @@ const fs = require("fs");
 exports.createPost = async (req, res) => {
   try {
     const files = req.files;
+    const body = req.body || {};
+    const content = body.content || body.text;
     let media = [];
 
     // ✅ HANDLE MULTIPLE MEDIA UPLOAD
@@ -47,8 +49,8 @@ exports.createPost = async (req, res) => {
     // ✅ CREATE POST
     const post = await Post.create({
       author: req.user.id,
-      content: req.body.content,
-      club: req.body.club || null,
+      content,
+      club: body.club || null,
       media // 👈 NEW FIELD
     });
 
@@ -211,6 +213,7 @@ exports.deletePost = async (req, res) => {
 exports.updatePost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
+    const body = req.body || {};
 
     if (!post)
       return res.status(404).json({ msg: "Post not found" });
@@ -259,7 +262,7 @@ exports.updatePost = async (req, res) => {
     }
 
     // ✏️ UPDATE FIELDS
-    post.content = req.body.content || post.content;
+    post.content = body.content || body.text || post.content;
     post.media = media;
 
     await post.save();

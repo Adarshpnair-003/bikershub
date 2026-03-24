@@ -7,13 +7,15 @@ exports.createOrGetConversation = async (req, res) => {
     const { userId } = req.body;
 
     let conversation = await Conversation.findOne({
-      members: { $all: [req.user.id, userId] }
+      participants: { $all: [req.user.id, userId] },
+      type: "direct"
     });
 
     if (!conversation) {
 
       conversation = await Conversation.create({
-        members: [req.user.id, userId]
+        participants: [req.user.id, userId],
+        type: "direct"
       });
 
     }
@@ -31,9 +33,9 @@ exports.getMyConversations = async (req, res) => {
   try {
 
     const conversations = await Conversation.find({
-      members: req.user.id
+      participants: req.user.id
     })
-      .populate("members", "username")
+      .populate("participants", "username")
       .sort({ updatedAt: -1 });
 
     res.json(conversations);
@@ -49,7 +51,7 @@ exports.getConversation = async (req, res) => {
   try {
 
     const conversation = await Conversation.findById(req.params.id)
-      .populate("members", "username");
+      .populate("participants", "username");
 
     res.json(conversation);
 

@@ -6,10 +6,18 @@ const User = require("../models/User");
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+const getUserDisplay = (user) => ({
+  id: user._id,
+  username: user.username || user.name,
+  email: user.email,
+  profilePic: user.profilePic
+});
+
 /* ================= REGISTER ================= */
 exports.register = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, name, email, password } = req.body;
+    const normalizedUsername = (username || name || "").trim();
 
     const userExists = await User.findOne({ email });
 
@@ -17,12 +25,11 @@ exports.register = async (req, res) => {
       return res.status(400).json({ msg: "User already exists" });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
     const newUser = await User.create({
-      username,
+      username: normalizedUsername,
+      name: normalizedUsername,
       email,
-      password: hashedPassword
+      password  // hashed by User pre-save hook
     });
 
     res.status(201).json({
@@ -51,15 +58,9 @@ exports.login = async (req, res) => {
 
     const user = await User.findOne({ email });
 
-    if (!user) {
-      return res.status(400).json({ msg: "User not found" });
-    }
-
-    // ❌ Prevent password login for Google users
-    if (user.isSocialLogin) {
-      return res.status(400).json({
-        msg: "Use Google login for this account"
-      });
+    // Same message for all cases — prevents email enumeration
+    if (!user || user.isSocialLogin || !user.password) {
+      return res.status(400).json({ msg: "Invalid credentials" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -77,12 +78,7 @@ exports.login = async (req, res) => {
     res.json({
       msg: "Login successful",
       token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        profilePic: user.profilePic
-      }
+      user: getUserDisplay(user)
     });
 
   } catch (error) {
@@ -116,13 +112,14 @@ exports.googleAuth = async (req, res) => {
     if (!user) {
       user = await User.create({
         username: name || email.split("@")[0],
+        name: name || email.split("@")[0],
         email,
         googleId: sub,
         profilePic: {
           url: picture
         },
-        isSocialLogin: true,
-        password: null // no password for Google users
+        isSocialLogin: true
+        // No password field — Google users authenticate via token only
       });
     }
 
@@ -136,12 +133,7 @@ exports.googleAuth = async (req, res) => {
     res.json({
       msg: "Google login successful",
       token: jwtToken,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        profilePic: user.profilePic
-      }
+      user: getUserDisplay(user)
     });
 
   } catch (error) {

@@ -1,6 +1,8 @@
 const express = require("express");
 const http = require("http");
 const cors = require("cors");
+const path = require("path");
+const fs = require("fs");
 require("dotenv").config();
 
 const connectDB = require("./config/db");
@@ -41,6 +43,17 @@ app.use("/api/search", require("./routes/searchRoutes"));
 app.use("/api/chat", require("./routes/chatRoutes"));
 app.use("/api/conversations", require("./routes/conversationRoutes"));
 app.use("/api/upload", require("./routes/uploadRoutes"));
+
+/* FRONTEND STATIC (OPTIONAL) */
+const frontendDistPath = path.join(__dirname, "frontend", "dist");
+if (fs.existsSync(frontendDistPath)) {
+  app.use(express.static(frontendDistPath));
+
+  app.get(/^\/(?!api|$).*/, (req, res) => {
+    res.sendFile(path.join(frontendDistPath, "index.html"));
+  });
+}
+
 /* HEALTH CHECK */
 app.get("/", (req, res) => {
   res.send("Backend is running 🚀");
