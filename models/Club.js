@@ -15,7 +15,19 @@ const clubSchema = new mongoose.Schema(
     },
 
     location: {
-      type: String
+      type: {
+        type: String,
+        enum: ["Point"],
+        default: "Point"
+      },
+      coordinates: {
+        type: [Number], // [lng, lat]
+        default: [0, 0]
+      }
+    },
+    locationName: {
+      type: String,
+      default: ""
     },
 
     isPrivate: {
@@ -56,5 +68,7 @@ const clubSchema = new mongoose.Schema(
 clubSchema.index({ owner: 1 });
 clubSchema.index({ members: 1 });
 clubSchema.index({ admins: 1 });
+clubSchema.index({ location: "2dsphere" });
+clubSchema.index({ name: "text", description: "text" });
 
 module.exports = mongoose.model("Club", clubSchema);

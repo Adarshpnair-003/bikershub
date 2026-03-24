@@ -139,4 +139,6 @@ userSchema.pre("save", async function hashPassword(next) {
     next();
 });
 
+userSchema.index({ username: "text", bio: "text" });
+
 module.exports = mongoose.model("User", userSchema);

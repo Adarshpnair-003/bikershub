@@ -194,5 +194,6 @@ rideSchema.index({ startCoords: "2dsphere" });
 rideSchema.index({ destinationCoords: "2dsphere" });
 // 🗺️ For route-based geo queries (optional but useful)
 rideSchema.index({ route: "2dsphere" });
+rideSchema.index({ title: "text", description: "text" });
 
 module.exports = mongoose.model("Ride", rideSchema);
