@@ -175,14 +175,13 @@ const rideSchema = new mongoose.Schema(
 ============================ */
 
 // Cap riderLocations at 50 entries to prevent unbounded document growth
-rideSchema.pre("save", function (next) {
+rideSchema.pre("save", function () {
   if (this.isModified("riderLocations") && this.riderLocations.length > 50) {
     this.riderLocations = this.riderLocations.slice(-50);
   }
   if (this.isModified("route.coordinates") && this.route.coordinates.length > 2000) {
     this.route.coordinates = this.route.coordinates.slice(-2000);
   }
-  next();
 });
 
 /* ============================
@@ -192,8 +191,6 @@ rideSchema.pre("save", function (next) {
 // 🔍 For nearby ride search
 rideSchema.index({ startCoords: "2dsphere" });
 rideSchema.index({ destinationCoords: "2dsphere" });
-// 🗺️ For route-based geo queries (optional but useful)
-rideSchema.index({ route: "2dsphere" });
 rideSchema.index({ title: "text", description: "text" });
 
 module.exports = mongoose.model("Ride", rideSchema);

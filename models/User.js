@@ -123,20 +123,18 @@ const userSchema = new mongoose.Schema(
 { timestamps: true }
 );
 
-userSchema.pre("validate", function syncNameFields(next) {
+userSchema.pre("validate", function syncNameFields() {
     if (!this.username && this.name) {
         this.username = this.name;
     }
     if (!this.name && this.username) {
         this.name = this.username;
     }
-    next();
 });
 
-userSchema.pre("save", async function hashPassword(next) {
-    if (!this.isModified("password") || !this.password) return next();
+userSchema.pre("save", async function hashPassword() {
+    if (!this.isModified("password") || !this.password) return;
     this.password = await bcrypt.hash(this.password, 12);
-    next();
 });
 
 userSchema.index({ username: "text", bio: "text" });
