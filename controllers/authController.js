@@ -32,10 +32,7 @@ exports.register = async (req, res) => {
       password  // hashed by User pre-save hook
     });
 
-    res.status(201).json({
-      msg: "User registered successfully",
-      userId: newUser._id
-    });
+    res.status(201).json({ success: true, data: { userId: newUser._id }, message: "User registered successfully" });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -75,11 +72,7 @@ exports.login = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    res.json({
-      msg: "Login successful",
-      token,
-      user: getUserDisplay(user)
-    });
+    res.json({ success: true, data: { token, user: getUserDisplay(user) }, message: "Login successful" });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -130,11 +123,7 @@ exports.googleAuth = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    res.json({
-      msg: "Google login successful",
-      token: jwtToken,
-      user: getUserDisplay(user)
-    });
+    res.json({ success: true, data: { token: jwtToken, user: getUserDisplay(user) }, message: "Google login successful" });
 
   } catch (error) {
     console.error("GOOGLE AUTH ERROR:", error);

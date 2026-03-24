@@ -18,10 +18,10 @@ function detectBaseUrl() {
 
   const ua = navigator.userAgent || '';
   if (ua.includes('Android') && typeof window.Capacitor !== 'undefined') {
-    return 'http://10.0.2.2:5002';
+    return 'http://10.0.2.2:5000';
   }
 
-  return 'http://localhost:5002';
+  return 'http://localhost:5000';
 }
 
 export const API_BASE_URL = detectBaseUrl();
@@ -98,6 +98,59 @@ function buildHeaders(isFormData = false) {
 }
 
 /**
+ * Normalize inconsistent backend response shapes into the standard format:
+ * { success: true/false, data: {...}, message: "..." }
+ * @param {any} data - parsed JSON from backend
+ * @param {number} httpStatus - HTTP status code
+ * @returns {{ success: boolean, data?: any, error?: any, message?: string }}
+ */
+function normalizeResponse(data, httpStatus) {
+  // Already in standard format — return as-is
+  if (data && typeof data.success === 'boolean') return data;
+
+  // HTTP error → return as error
+  if (httpStatus >= 400) {
+    return {
+      success: false,
+      error: { message: data?.msg || data?.error || data?.message || 'Request failed' },
+    };
+  }
+
+  // Auth login/google response: has both `token` and `user` at root
+  if (data?.token && data?.user) {
+    return { success: true, data: { token: data.token, user: data.user }, message: data.msg };
+  }
+
+  // Register response: has userId
+  if (data?.userId) {
+    return { success: true, data: { userId: data.userId }, message: data.msg };
+  }
+
+  // Array response (posts, notifications, clubs, rides, conversations, messages)
+  if (Array.isArray(data)) {
+    return { success: true, data };
+  }
+
+  // Unread count response — both notification and chat controllers use `unread`
+  if (data && typeof data.unread === 'number') {
+    return { success: true, data: { count: data.unread } };
+  }
+
+  // Paginated response with a known list field
+  if (data?.posts || data?.clubs || data?.rides || data?.conversations || data?.messages) {
+    return { success: true, data };
+  }
+
+  // Single entity with _id (user, post, club, ride, etc.)
+  if (data?._id) {
+    return { success: true, data };
+  }
+
+  // Generic success (has msg, no error, status < 400)
+  return { success: true, data, message: data?.msg };
+}
+
+/**
  * Core request function with auto-retry on 401
  * @param {string} url - API path (e.g. '/api/posts')
  * @param {object} options - fetch options
@@ -106,27 +159,23 @@ function buildHeaders(isFormData = false) {
  */
 async function request(url, options = {}, isRetry = false) {
   const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
-
   const res = await fetch(fullUrl, options);
 
   // Handle 401 - try to refresh token
   if (res.status === 401 && !isRetry) {
     const refreshed = await tryRefreshToken();
     if (refreshed) {
-      // Rebuild headers with new token
       const newHeaders = buildHeaders(options.body instanceof FormData);
       options.headers = newHeaders;
       return request(url, options, true);
     }
-
-    // Refresh failed - redirect to login
     clearTokens();
     navigate('/login');
     throw new Error('Session expired. Please log in again.');
   }
 
   const data = await res.json();
-  return data;
+  return normalizeResponse(data, res.status);
 }
 
 /**

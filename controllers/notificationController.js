@@ -9,7 +9,7 @@ exports.getNotifications = async (req, res) => {
     .populate("sender", "username profilePicture")
     .sort({ createdAt: -1 });
 
-    res.json(notifications);
+    res.json({ success: true, data: notifications });
 
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -26,7 +26,7 @@ exports.markAsRead = async (req, res) => {
       { new: true }
     );
 
-    res.json(notification);
+    res.json({ success: true, data: notification, message: "Marked as read" });
 
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -42,7 +42,7 @@ exports.markAllRead = async (req, res) => {
       { isRead: true }
     );
 
-    res.json({ message: "All notifications marked as read" });
+    res.json({ success: true, message: "All notifications marked as read" });
 
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -81,7 +81,7 @@ exports.getUnreadCount = async (req, res) => {
       isRead: false
     });
 
-    res.json({ unread: count });
+    res.json({ success: true, data: { count } });
 
   } catch (error) {
     res.status(500).json({ message: error.message });

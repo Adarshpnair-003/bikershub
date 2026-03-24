@@ -10,7 +10,7 @@ exports.getCurrentUser = async (req, res) => {
       .select("-password")
       .populate("followers following", "username email");
 
-    res.json(user);
+    res.json({ success: true, data: user });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -115,13 +115,7 @@ exports.getUserProfile = async (req, res) => {
 
     const isFollowing = currentUser.following.includes(user._id);
 
-    res.json({
-      user,
-      posts,
-      followersCount: user.followers.length,
-      followingCount: user.following.length,
-      isFollowing
-    });
+    res.json({ success: true, data: { user, posts, followersCount: user.followers.length, followingCount: user.following.length, isFollowing } });
 
   } catch (error) {
     res.status(500).json({ error: error.message });

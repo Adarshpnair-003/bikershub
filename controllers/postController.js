@@ -60,7 +60,7 @@ exports.createPost = async (req, res) => {
     const io = getIO();
     io.emit("newPost", populatedPost);
 
-    res.status(201).json(populatedPost);
+    res.status(201).json({ success: true, data: populatedPost, message: "Post created" });
 
   } catch (error) {
     console.error("CREATE POST ERROR:", error);
@@ -84,7 +84,7 @@ exports.getAllPosts = async (req, res) => {
       .populate("author", "username email")
       .sort({ createdAt: -1 });
 
-    res.json(posts);
+    res.json({ success: true, data: posts });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -130,7 +130,13 @@ exports.likePost = async (req, res) => {
       likesCount: post.likes.length
     });
 
-    res.json(post);
+    res.json({
+      success: true,
+      data: {
+        liked: !alreadyLiked,
+        likesCount: post.likes.length
+      }
+    });
 
   } catch (error) {
     res.status(500).json({ error: error.message });

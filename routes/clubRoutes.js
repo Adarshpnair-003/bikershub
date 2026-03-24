@@ -4,6 +4,9 @@ const protect = require("../middleware/authMiddleware");
 
 const clubController = require("../controllers/clubController");
 
+/* LIST ALL CLUBS */
+router.get("/", clubController.getAllClubs);
+
 router.post("/", protect, clubController.createClub);
 
 router.post("/:id/join", protect, clubController.requestJoinClub);

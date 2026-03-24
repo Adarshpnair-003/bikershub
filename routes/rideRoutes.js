@@ -19,7 +19,9 @@ router.put("/:rideId/start", protect, rideController.startRide);
 router.put("/:rideId/location", protect, rideController.updateLocation);
 router.put("/:rideId/end", protect, rideController.endRide);
 
-/* JOIN */
+/* JOIN — support both /:rideId/join and /join/:rideId patterns */
+router.post("/:rideId/join", protect, rideController.joinRide);
+router.post("/:rideId/leave", protect, rideController.leaveRide);
 router.post("/join/:rideId", protect, rideController.joinRide);
 router.post("/leave/:rideId", protect, rideController.leaveRide);
 router.post("/invite/:rideId/:userId", protect, rideController.inviteToRide);

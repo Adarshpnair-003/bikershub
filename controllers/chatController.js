@@ -27,7 +27,7 @@ exports.sendMessage = async (req, res) => {
 
     io.to(conversationId).emit("receiveMessage", message);
 
-    res.status(201).json(message);
+    res.status(201).json({ success: true, data: message });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -45,7 +45,7 @@ exports.getMessagesByConversation = async (req, res) => {
       .populate("sender", "username")
       .sort({ createdAt: 1 });
 
-    res.json(messages);
+    res.json({ success: true, data: messages });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -83,7 +83,7 @@ exports.getUnreadCount = async (req, res) => {
       readBy: { $ne: req.user.id }
     });
 
-    res.json({ unread: count });
+    res.json({ success: true, data: { count } });
 
   } catch (error) {
     res.status(500).json({ error: error.message });

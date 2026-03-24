@@ -3,6 +3,21 @@ const Post = require("../models/Post");
 const Notification = require("../models/Notification");
 const Conversation = require("../models/Conversation");
 
+/* GET ALL CLUBS */
+exports.getAllClubs = async (req, res) => {
+  try {
+    const clubs = await Club.find()
+      .select("name description location isPrivate members owner coverImage createdAt")
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    res.json({ success: true, data: clubs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
 /* CREATE CLUB */
 exports.createClub = async (req, res) => {
   try {
