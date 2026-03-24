@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const env = require("./env"); // ensure env validation runs first
+const logger = require("./logger");
 
 const MAX_RETRIES = 5;
 const RETRY_DELAY_MS = 5000;
@@ -7,29 +8,29 @@ const RETRY_DELAY_MS = 5000;
 async function connectDB(attempt = 1) {
   try {
     await mongoose.connect(env.MONGO_URI);
-    console.log("[db] MongoDB connected");
+    logger.info("[db] MongoDB connected");
   } catch (err) {
-    console.error(`[db] Connection attempt ${attempt} failed: ${err.message}`);
+    logger.error({ attempt, err: err.message }, "[db] Connection failed");
     if (attempt >= MAX_RETRIES) {
-      console.error("[db] Max retries reached. Exiting.");
+      logger.fatal("[db] Max retries reached. Exiting.");
       process.exit(1);
     }
-    console.log(`[db] Retrying in ${RETRY_DELAY_MS / 1000}s...`);
+    logger.info({ retryIn: RETRY_DELAY_MS / 1000 }, "[db] Retrying");
     await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
     return connectDB(attempt + 1);
   }
 }
 
 mongoose.connection.on("error", (err) => {
-  console.error("[db] MongoDB error:", err.message);
+  logger.error({ err: err.message }, "[db] MongoDB error");
 });
 
 mongoose.connection.on("disconnected", () => {
-  console.warn("[db] MongoDB disconnected");
+  logger.warn("[db] MongoDB disconnected");
 });
 
 mongoose.connection.on("reconnected", () => {
-  console.log("[db] MongoDB reconnected");
+  logger.info("[db] MongoDB reconnected");
 });
 
 module.exports = connectDB;

@@ -1,0 +1,30 @@
+# Dependencies (re-installed inside image)
+node_modules
+
+# Secrets — never bake into image
+.env
+.env.*
+
+# Version control
+.git
+.gitignore
+
+# Test artefacts
+coverage
+tests
+*.test.js
+
+# Logs
+logs
+npm-debug.log*
+
+# OS noise
+.DS_Store
+
+# Documentation (keep README.md out of the build context — it's not needed at runtime)
+*.md
+!README.md
+
+# Project-specific tooling / IDE config
+.claude
+docs

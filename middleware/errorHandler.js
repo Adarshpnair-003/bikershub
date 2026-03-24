@@ -1,4 +1,5 @@
 const AppError = require("../utils/AppError");
+const logger = require("../config/logger");
 
 function handleCastError(err) {
   return new AppError(`Invalid ${err.path}: ${err.value}`, 400, "INVALID_ID");
@@ -47,7 +48,7 @@ module.exports = function errorHandler(err, req, res, next) {
   }
 
   // Unknown/programmer errors: don't leak internals
-  console.error("[errorHandler] Unexpected error:", err);
+  logger.error({ err }, "[errorHandler] Unexpected error");
   return res.status(500).json({
     success: false,
     error: { code: "SERVER_ERROR", message: "Something went wrong. Please try again." }

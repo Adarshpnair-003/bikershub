@@ -1,5 +1,6 @@
 const Ride = require("../models/Ride");
 const haversineDistance = require("../utils/distance");
+const logger = require("../config/logger");
 
 // Module-scope maps for debouncing and distance tracking
 const lastUpdateMap = new Map(); // userId -> last update timestamp (ms)
@@ -17,7 +18,7 @@ module.exports = function registerRideHandlers(socket, io) {
       if (!ride.participants.some(p => p.toString() === socket.user.id.toString())) return;
       socket.join(`ride:${rideId}`);
     } catch (err) {
-      console.error("[socket] joinRide error:", err.message);
+      logger.error({ err: err.message }, "[socket] joinRide error");
     }
   });
 
@@ -83,7 +84,7 @@ module.exports = function registerRideHandlers(socket, io) {
       // Broadcast updated location to all ride participants
       io.to(`ride:${rideId}`).emit("riderLocationUpdated", { userId, lat, lng });
     } catch (err) {
-      console.error("[socket] rideLocationUpdate error:", err.message);
+      logger.error({ err: err.message }, "[socket] rideLocationUpdate error");
     }
   });
 };

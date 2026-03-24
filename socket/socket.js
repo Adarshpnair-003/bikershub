@@ -1,6 +1,7 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const env = require("../config/env");
+const logger = require("../config/logger");
 
 const registerChatHandlers = require("./chatHandler");
 const registerRideHandlers = require("./rideHandler");
@@ -33,9 +34,9 @@ const initSocket = (server) => {
       const pubClient = new Redis(env.REDIS_URL);
       const subClient = pubClient.duplicate();
       io.adapter(createAdapter(pubClient, subClient));
-      console.log("[socket] Redis adapter connected");
+      logger.info("[socket] Redis adapter connected");
     } catch (err) {
-      console.error("[socket] Redis adapter error:", err.message);
+      logger.error({ err: err.message }, "[socket] Redis adapter error");
     }
   }
 
@@ -75,7 +76,7 @@ const initSocket = (server) => {
     registerPostHandlers(socket, io);
 
     socket.on("disconnect", () => {
-      console.log("User disconnected:", socket.id);
+      logger.info({ socketId: socket.id }, "[socket] User disconnected");
     });
   });
 

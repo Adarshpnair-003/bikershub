@@ -1,4 +1,5 @@
 const axios = require("axios");
+const logger = require("../config/logger");
 
 function invalidPoint() {
   return {
@@ -51,7 +52,7 @@ async function geocodeAddress(address) {
       coordinates: [lon, lat]
     };
   } catch (error) {
-    console.error("[geocode] Failed to geocode address:", error.message);
+    logger.error({ err: error.message }, "[geocode] Failed to geocode address");
     return invalidPoint();
   }
 }

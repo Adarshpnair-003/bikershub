@@ -1,6 +1,7 @@
 const Message = require("../models/Message");
 const Conversation = require("../models/Conversation");
 const Club = require("../models/Club");
+const logger = require("../config/logger");
 
 module.exports = function registerChatHandlers(socket, io) {
   /* ============================
@@ -13,7 +14,7 @@ module.exports = function registerChatHandlers(socket, io) {
       if (!convo.participants.some(p => p.toString() === socket.user.id.toString())) return;
       socket.join(`conversation:${conversationId}`);
     } catch (err) {
-      console.error("[socket] joinConversation error:", err.message);
+      logger.error({ err: err.message }, "[socket] joinConversation error");
     }
   });
 
@@ -41,7 +42,7 @@ module.exports = function registerChatHandlers(socket, io) {
 
       io.to(`conversation:${conversationId}`).emit("receiveMessage", message.toObject());
     } catch (err) {
-      console.error("[socket] sendMessage error:", err.message);
+      logger.error({ err: err.message }, "[socket] sendMessage error");
     }
   });
 
@@ -67,7 +68,7 @@ module.exports = function registerChatHandlers(socket, io) {
       if (!club.members.some(m => m.toString() === socket.user.id.toString())) return;
       socket.join(`club:${clubId}`);
     } catch (err) {
-      console.error("[socket] joinClubChat error:", err.message);
+      logger.error({ err: err.message }, "[socket] joinClubChat error");
     }
   });
 
@@ -95,7 +96,7 @@ module.exports = function registerChatHandlers(socket, io) {
 
       io.to(`club:${clubId}`).emit("receiveClubMessage", message.toObject());
     } catch (err) {
-      console.error("[socket] sendClubMessage error:", err.message);
+      logger.error({ err: err.message }, "[socket] sendClubMessage error");
     }
   });
 
@@ -110,7 +111,7 @@ module.exports = function registerChatHandlers(socket, io) {
       if (!convo.participants.some(p => p.toString() === socket.user.id.toString())) return;
       socket.join(`ride:${rideId}`);
     } catch (err) {
-      console.error("[socket] joinRideChat error:", err.message);
+      logger.error({ err: err.message }, "[socket] joinRideChat error");
     }
   });
 
@@ -138,7 +139,7 @@ module.exports = function registerChatHandlers(socket, io) {
 
       io.to(`ride:${rideId}`).emit("receiveRideMessage", message.toObject());
     } catch (err) {
-      console.error("[socket] sendRideMessage error:", err.message);
+      logger.error({ err: err.message }, "[socket] sendRideMessage error");
     }
   });
 };

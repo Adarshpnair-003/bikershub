@@ -1,12 +1,14 @@
 require("dotenv").config(); // MUST be first line
 const env = require("./config/env");
+const logger = require("./config/logger");
 
 const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const helmet = require("helmet");
-const morgan = require("morgan");
+const pinoHttp = require("pino-http");
 const mongoSanitize = require("express-mongo-sanitize");
+const mongoose = require("mongoose");
 
 const connectDB = require("./config/db");
 const { initSocket } = require("./socket/socket");
@@ -42,10 +44,8 @@ app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 /* NOSQL INJECTION SANITIZATION */
 app.use(mongoSanitize());
 
-/* REQUEST LOGGING (dev only) */
-if (env.NODE_ENV === "development") {
-  app.use(morgan("dev"));
-}
+/* REQUEST LOGGING (pino-http — replaces morgan) */
+app.use(pinoHttp({ logger }));
 
 /* RATE LIMITING */
 app.use(globalLimiter);
@@ -82,13 +82,35 @@ app.use(errorHandler);
 const PORT = env.PORT || 5000;
 
 server.listen(PORT, () => {
-  console.log(`[server] Running on port ${PORT} in ${env.NODE_ENV} mode`);
+  logger.info({ port: PORT, env: env.NODE_ENV }, "[server] Running");
 });
 
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
-    console.error(`[server] Port ${PORT} is already in use`);
+    logger.fatal({ port: PORT }, "[server] Port already in use");
     process.exit(1);
   }
   throw err;
 });
+
+/* GRACEFUL SHUTDOWN */
+const shutdown = async (signal) => {
+  logger.info({ signal }, "[server] Shutting down gracefully");
+  server.close(async () => {
+    try {
+      await mongoose.connection.close();
+      logger.info("[server] MongoDB connection closed");
+    } catch (err) {
+      logger.error({ err }, "[server] Error closing MongoDB connection");
+    }
+    process.exit(0);
+  });
+  // Force exit if graceful shutdown takes too long
+  setTimeout(() => {
+    logger.error("[server] Forced shutdown after timeout");
+    process.exit(1);
+  }, 10000);
+};
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
