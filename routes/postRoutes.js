@@ -21,6 +21,14 @@ router.get("/", protect, postController.getAllPosts);
 /* SMART FEED */
 router.get("/feed", protect, postController.getSmartFeed);
 
+/* GET SINGLE POST */
+router.get(
+  "/:id",
+  [param("id").isMongoId().withMessage("Valid post id is required")],
+  validateRequest,
+  postController.getPostById
+);
+
 /* LIKE POST */
 router.put(
   "/like/:id",

@@ -127,7 +127,7 @@ export function mount() {
   const createBtn = document.getElementById('clubs-create-btn');
   if (createBtn) {
     createBtn.addEventListener('click', () => {
-      alert('Create club coming soon');
+      navigate('/create-club');
     });
   }
 
@@ -191,6 +191,7 @@ async function renderDiscoverTab(container) {
 
   attachClubJoinHandlers();
   attachLikeHandlers();
+  attachNavigationHandlers();
 }
 
 async function renderYourClubsTab(container) {
@@ -248,6 +249,7 @@ async function renderYourClubsTab(container) {
   `;
 
   attachLikeHandlers();
+  attachNavigationHandlers();
 }
 
 async function renderRidesTab(container) {
@@ -298,7 +300,7 @@ async function renderRidesTab(container) {
         const creatorName = creator.username || 'Unknown';
 
         return `
-          <div class="ride-card">
+          <div class="ride-card" data-ride-id="${r._id}" style="cursor: pointer;">
             <div style="display: flex; justify-content: space-between; align-items: start;">
               <div class="ride-card-title">${r.title || 'Untitled Ride'}</div>
               <span style="font-size: 11px; color: ${statusColor}; font-weight: 700; text-transform: uppercase;">${status}</span>
@@ -317,6 +319,14 @@ async function renderRidesTab(container) {
       }).join('')}
     </div>
   `;
+
+  // Navigate to ride detail on card click
+  document.querySelectorAll('.ride-card[data-ride-id]').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.ride-join-btn')) return; // don't navigate on join btn click
+      navigate(`/rides/${card.dataset.rideId}`);
+    });
+  });
 
   // Attach join handlers
   document.querySelectorAll('.ride-join-btn').forEach((btn) => {
@@ -337,6 +347,30 @@ async function renderRidesTab(container) {
       } catch {
         btn.textContent = 'Join Ride';
         btn.disabled = false;
+      }
+    });
+  });
+}
+
+function attachNavigationHandlers() {
+  // Club card click → club detail
+  document.querySelectorAll('.club-card[data-club-id]').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.club-card-join')) return; // don't navigate on join btn
+      const clubId = card.dataset.clubId;
+      if (clubId && !clubId.startsWith('pc') && !clubId.startsWith('uc')) {
+        navigate(`/clubs/${clubId}`);
+      }
+    });
+  });
+
+  // Post card click → post detail
+  document.querySelectorAll('.post-card-dark[data-post-id]').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.like-btn, .comment-btn, .share-btn, .post-card-author')) return;
+      const postId = card.dataset.postId;
+      if (postId && !postId.startsWith('cp') && !postId.startsWith('placeholder')) {
+        navigate(`/posts/${postId}`);
       }
     });
   });

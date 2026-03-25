@@ -18,6 +18,23 @@ exports.getCurrentUser = async (req, res) => {
 };
 
 
+/* UPDATE PROFILE */
+exports.updateProfile = async (req, res) => {
+  try {
+    const allowedFields = ['username', 'name', 'bio', 'phone', 'location', 'bikeBrand', 'bikeModel', 'bikeYear'];
+    const updates = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) updates[field] = req.body[field];
+    }
+    const user = await User.findByIdAndUpdate(req.user.id, updates, { new: true, runValidators: true })
+      .select('-password');
+    if (!user) return res.status(404).json({ success: false, error: { message: "User not found" } });
+    res.json({ success: true, data: user, message: "Profile updated" });
+  } catch (error) {
+    res.status(500).json({ success: false, error: { message: error.message || "Update failed" } });
+  }
+};
+
 /* FOLLOW USER */
 exports.followUser = async (req, res) => {
   try {

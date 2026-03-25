@@ -353,13 +353,19 @@ function mountRegister() {
 import { render as renderHome, mount as mountHome } from './pages/home.js';
 import { render as renderClubs, mount as mountClubs } from './pages/clubs.js';
 import { render as renderSearch, mount as mountSearch } from './pages/search.js';
-import { render as renderMaps, mount as mountMaps } from './pages/maps.js';
+import { render as renderMaps, mount as mountMaps, cleanup as cleanupMaps } from './pages/maps.js';
 import { render as renderProfile, mount as mountProfile } from './pages/profile.js';
 import { render as renderCreatePost, mount as mountCreatePost } from './pages/create-post.js';
-import { render as renderCreateRide, mount as mountCreateRide } from './pages/create-ride.js';
+import { render as renderCreateRide, mount as mountCreateRide, cleanup as cleanupCreateRide } from './pages/create-ride.js';
 import { render as renderConversations, mount as mountConversations } from './pages/conversations.js';
 import { render as renderChat, mount as mountChat, cleanup as cleanupChat } from './pages/chat.js';
 import { render as renderNotifications, mount as mountNotifications } from './pages/notifications.js';
+import { render as renderRideDetail, mount as mountRideDetail, cleanup as cleanupRideDetail } from './pages/ride-detail.js';
+import { render as renderClubDetail, mount as mountClubDetail } from './pages/club-detail.js';
+import { render as renderCreateClub, mount as mountCreateClub } from './pages/create-club.js';
+import { render as renderEditProfile, mount as mountEditProfile } from './pages/edit-profile.js';
+import { render as renderUserProfile, mount as mountUserProfile } from './pages/user-profile.js';
+import { render as renderPostDetail, mount as mountPostDetail } from './pages/post-detail.js';
 
 // ============================================
 // ROUTE REGISTRATION
@@ -448,6 +454,49 @@ registerRoute('/chat/:id', (context) => {
 registerRoute('/notifications', () => {
   if (!requireAuth()) return;
   showPage(renderNotifications, mountNotifications);
+});
+
+registerRoute('/rides/:id', (context) => {
+  if (!requireAuth()) return;
+  if (typeof cleanupRideDetail === 'function') cleanupRideDetail();
+  showPage(
+    () => renderRideDetail(context),
+    () => mountRideDetail(context)
+  );
+});
+
+registerRoute('/clubs/:id', (context) => {
+  if (!requireAuth()) return;
+  showPage(
+    () => renderClubDetail(context),
+    () => mountClubDetail(context)
+  );
+});
+
+registerRoute('/create-club', () => {
+  if (!requireAuth()) return;
+  showPage(renderCreateClub, mountCreateClub);
+});
+
+registerRoute('/edit-profile', () => {
+  if (!requireAuth()) return;
+  showPage(renderEditProfile, mountEditProfile);
+});
+
+registerRoute('/user/:id', (context) => {
+  if (!requireAuth()) return;
+  showPage(
+    () => renderUserProfile(context),
+    () => mountUserProfile(context)
+  );
+});
+
+registerRoute('/posts/:id', (context) => {
+  if (!requireAuth()) return;
+  showPage(
+    () => renderPostDetail(context),
+    () => mountPostDetail(context)
+  );
 });
 
 // ============================================

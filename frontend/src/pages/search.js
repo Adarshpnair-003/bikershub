@@ -268,7 +268,21 @@ function attachSearchHandlers() {
   document.querySelectorAll('.search-view-club').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      navigate('/clubs');
+      const clubId = btn.dataset.clubId;
+      navigate(clubId ? `/clubs/${clubId}` : '/clubs');
+    });
+  });
+
+  // Clickable search result items → navigate to detail pages
+  document.querySelectorAll('.search-result-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      const type = item.dataset.type;
+      const id = item.dataset.id;
+      if (!id) return;
+      if (type === 'user') navigate(`/user/${id}`);
+      else if (type === 'club') navigate(`/clubs/${id}`);
+      else if (type === 'ride') navigate(`/rides/${id}`);
+      else if (type === 'post') navigate(`/posts/${id}`);
     });
   });
 }

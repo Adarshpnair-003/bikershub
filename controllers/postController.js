@@ -109,6 +109,19 @@ exports.getAllPosts = async (req, res) => {
 };
 
 
+/* GET SINGLE POST */
+exports.getPostById = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id)
+      .populate("author", "username profilePic email")
+      .populate("club", "name");
+    if (!post) return res.status(404).json({ success: false, error: { message: "Post not found" } });
+    res.json({ success: true, data: post });
+  } catch (error) {
+    res.status(500).json({ success: false, error: { message: error.message } });
+  }
+};
+
 /* LIKE / UNLIKE POST */
 exports.likePost = async (req, res) => {
   try {

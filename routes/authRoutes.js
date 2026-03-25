@@ -40,4 +40,7 @@ router.post(
 /* ================= GOOGLE LOGIN ================= */
 router.post("/google", authController.googleAuth);
 
+/* ================= LOGOUT ================= */
+router.post("/logout", authController.logout);
+
 module.exports = router;

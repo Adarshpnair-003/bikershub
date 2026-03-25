@@ -9,6 +9,9 @@ const userController = require("../controllers/userController");
 /* GET CURRENT USER */
 router.get("/me", protect, userController.getCurrentUser);
 
+/* UPDATE PROFILE */
+router.put("/me", protect, userController.updateProfile);
+
 /* GET USER PROFILE */
 router.get(
 	"/:id",

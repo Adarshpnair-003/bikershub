@@ -306,12 +306,18 @@ input, textarea {
    ======================================== */
 
 .app-header {
-  padding: 16px 20px;
-  padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+  padding: 12px 16px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
   background: #0d1117;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+}
+
+.app-header-left {
+  display: flex;
+  align-items: center;
 }
 
 .app-header-title {
@@ -321,6 +327,62 @@ input, textarea {
   color: #f9fafb;
   text-transform: uppercase;
   letter-spacing: 2px;
+}
+
+/* Clickable title (notifications trigger on home) */
+.app-header-title-btn {
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 800;
+  font-size: 18px;
+  color: #f9fafb;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.header-badge {
+  background: #E53935;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+/* Create button (home top-left) */
+.home-create-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #E53935;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(229, 57, 53, 0.4);
+  transition: transform 0.15s;
+}
+
+.home-create-btn:active {
+  transform: scale(0.92);
+}
+
+.home-create-btn svg {
+  width: 20px;
+  height: 20px;
 }
 
 .app-header-actions {
@@ -534,6 +596,25 @@ input, textarea {
   color: #E53935;
 }
 
+/* Like button animation */
+@keyframes heartBounce {
+  0% { transform: scale(1); }
+  25% { transform: scale(1.3); }
+  50% { transform: scale(0.9); }
+  75% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+@keyframes heartFloat {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+  50% { opacity: 1; transform: translate(-50%, -70%) scale(1.2); }
+  100% { opacity: 0; transform: translate(-50%, -90%) scale(1); }
+}
+
+.post-action-btn.like-btn {
+  transition: color 0.2s ease;
+}
+
 .post-card-likes {
   padding: 0 20px;
   font-size: 13px;
@@ -614,30 +695,9 @@ input, textarea {
   box-shadow: 0 0 6px rgba(229, 57, 53, 0.6);
 }
 
-/* Create button (center tab) */
-.tab-bar-create {
-  color: #fff !important;
-}
-
-.tab-bar-create-circle {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: #E53935;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 12px rgba(229, 57, 53, 0.4);
-  transition: transform 0.15s;
-}
-
-.tab-bar-create-circle svg {
-  width: 22px;
-  height: 22px;
-}
-
-.tab-bar-create:active .tab-bar-create-circle {
-  transform: scale(0.92);
+/* Tab bar active fill for home icon */
+.tab-bar-item.active svg {
+  stroke: #E53935;
 }
 
 .tab-bar-spacer {
@@ -864,27 +924,10 @@ input, textarea {
 }
 
 /* ========================================
-   MAPS PLACEHOLDER
+   MAPS PAGE (Leaflet + Weather)
    ======================================== */
 
-.maps-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 80px 20px;
-  text-align: center;
-}
-
-.maps-placeholder-title {
-  font-family: 'Exo 2', sans-serif;
-  font-weight: 700;
-  font-size: 20px;
-  color: #f9fafb;
-  margin-bottom: 8px;
-}
-
-.maps-placeholder-subtitle {
-  font-size: 14px;
-  color: #6b7280;
+/* Leaflet container minimum sizing */
+#leaflet-map {
+  min-height: calc(100dvh - 60px - 52px - 220px);
 }

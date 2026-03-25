@@ -23,7 +23,7 @@ export function renderClubCard(club, mode) {
 
   if (mode === 'manage') {
     return `
-      <div class="club-card" style="${bgStyle}">
+      <div class="club-card" data-club-id="${club._id}" style="${bgStyle}; cursor: pointer;">
         <div class="club-card-overlay">
           <div class="club-card-name">${name}</div>
         </div>
@@ -36,7 +36,7 @@ export function renderClubCard(club, mode) {
   const membersCount = club.membersCount != null ? club.membersCount : (Array.isArray(club.members) ? club.members.length : 0);
 
   return `
-    <div class="club-card" style="${bgStyle}">
+    <div class="club-card" data-club-id="${club._id}" style="${bgStyle}; cursor: pointer;">
       <div class="club-card-overlay">
         <div class="club-card-name">${name}</div>
         <div class="club-card-meta">${privacy} &middot; ${formatCount(membersCount)}</div>

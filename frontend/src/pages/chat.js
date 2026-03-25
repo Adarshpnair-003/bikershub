@@ -13,6 +13,7 @@ const SEND_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" s
 let pollInterval = null;
 let conversationId = null;
 let otherUserName = 'Chat';
+let editingMessageId = null;
 
 export function render(context = {}) {
   conversationId = context.params?.id || null;
@@ -32,6 +33,35 @@ export function render(context = {}) {
         .chat-header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #0d1117; border-bottom: 1px solid #1f2937; }
         .chat-header-avatar { width: 36px; height: 36px; border-radius: 50%; background: #374151; flex-shrink: 0; object-fit: cover; }
         .chat-header-name { font-family: 'Exo 2', sans-serif; font-weight: 700; font-size: 16px; color: #f9fafb; }
+        .chat-bubble-wrapper { position: relative; }
+        .chat-bubble-deleted { font-style: italic; opacity: 0.5; }
+        .chat-bubble-edited { font-size: 10px; opacity: 0.6; margin-top: 2px; }
+        .chat-ctx-menu {
+          position: fixed; z-index: 100; background: #1f2937; border: 1px solid #374151;
+          border-radius: 12px; padding: 6px 0; min-width: 140px;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.5); animation: ctxFadeIn 0.15s ease;
+        }
+        @keyframes ctxFadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        .chat-ctx-item {
+          display: block; width: 100%; padding: 10px 16px; background: none; border: none;
+          color: #f9fafb; font-size: 14px; font-family: 'Nunito', sans-serif;
+          text-align: left; cursor: pointer;
+        }
+        .chat-ctx-item:hover { background: #374151; }
+        .chat-ctx-item--danger { color: #ef4444; }
+        .chat-edit-row { display: flex; gap: 6px; margin-top: 6px; }
+        .chat-edit-input {
+          flex: 1; background: #374151; border: 1px solid #E53935; border-radius: 12px;
+          padding: 6px 10px; color: #f9fafb; font-size: 13px; outline: none;
+          font-family: 'Nunito', sans-serif;
+        }
+        .chat-edit-btn {
+          padding: 6px 12px; border-radius: 8px; border: none; cursor: pointer;
+          font-size: 12px; font-weight: 700;
+        }
+        .chat-edit-save { background: #E53935; color: #fff; }
+        .chat-edit-cancel { background: #374151; color: #d1d5db; }
+        .chat-ctx-overlay { position: fixed; inset: 0; z-index: 99; }
       </style>
 
       <div class="chat-header">
@@ -159,14 +189,29 @@ async function loadMessages(isPolling = false) {
       const isOutgoing = currentUser && senderId === currentUser.id;
       const bubbleClass = isOutgoing ? 'chat-bubble chat-bubble-out' : 'chat-bubble chat-bubble-in';
       const timeStr = formatMsgTime(msg.createdAt);
+      const msgId = msg._id || '';
+
+      if (msg.isDeleted) {
+        return `
+          <div class="${bubbleClass} chat-bubble-deleted" style="align-self:${isOutgoing ? 'flex-end' : 'flex-start'}">
+            <div>\uD83D\uDEAB This message was deleted</div>
+            <div class="chat-bubble-time">${timeStr}</div>
+          </div>
+        `;
+      }
 
       return `
-        <div class="${bubbleClass}">
-          <div>${escapeHtml(msg.text || msg.content || '')}</div>
-          <div class="chat-bubble-time">${timeStr}</div>
+        <div class="chat-bubble-wrapper" style="align-self:${isOutgoing ? 'flex-end' : 'flex-start'};max-width:75%;" data-msg-id="${msgId}" ${isOutgoing ? 'data-outgoing="true"' : ''}>
+          <div class="${bubbleClass}">
+            <div>${escapeHtml(msg.text || msg.content || '')}</div>
+            ${msg.isEdited ? '<div class="chat-bubble-edited">Edited</div>' : ''}
+            <div class="chat-bubble-time">${timeStr}</div>
+          </div>
         </div>
       `;
     }).join('');
+
+    attachMessageContextMenu();
 
     if (shouldScroll) {
       container.scrollTop = container.scrollHeight;
@@ -234,6 +279,132 @@ async function sendMessage() {
   } finally {
     sendBtn.disabled = false;
     inputEl.focus();
+  }
+}
+
+function attachMessageContextMenu() {
+  document.querySelectorAll('.chat-bubble-wrapper[data-outgoing="true"]').forEach((wrapper) => {
+    let pressTimer = null;
+
+    // Long press for mobile
+    wrapper.addEventListener('touchstart', (e) => {
+      pressTimer = setTimeout(() => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        showContextMenu(wrapper.dataset.msgId, touch.clientX, touch.clientY);
+      }, 500);
+    }, { passive: false });
+
+    wrapper.addEventListener('touchend', () => clearTimeout(pressTimer));
+    wrapper.addEventListener('touchmove', () => clearTimeout(pressTimer));
+
+    // Right click for desktop
+    wrapper.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      showContextMenu(wrapper.dataset.msgId, e.clientX, e.clientY);
+    });
+  });
+}
+
+function showContextMenu(msgId, x, y) {
+  closeContextMenu();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'chat-ctx-overlay';
+  overlay.id = 'chat-ctx-overlay';
+  overlay.addEventListener('click', closeContextMenu);
+  document.body.appendChild(overlay);
+
+  const menu = document.createElement('div');
+  menu.className = 'chat-ctx-menu';
+  menu.id = 'chat-ctx-menu';
+  menu.innerHTML = `
+    <button class="chat-ctx-item" data-action="edit" data-msg-id="${msgId}">✏️ Edit</button>
+    <button class="chat-ctx-item chat-ctx-item--danger" data-action="delete" data-msg-id="${msgId}">🗑️ Delete for everyone</button>
+  `;
+
+  // Position the menu
+  menu.style.left = `${Math.min(x, window.innerWidth - 160)}px`;
+  menu.style.top = `${Math.min(y, window.innerHeight - 100)}px`;
+  document.body.appendChild(menu);
+
+  menu.querySelectorAll('.chat-ctx-item').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const action = btn.dataset.action;
+      const id = btn.dataset.msgId;
+      closeContextMenu();
+      if (action === 'edit') startEditMessage(id);
+      if (action === 'delete') deleteMessage(id);
+    });
+  });
+}
+
+function closeContextMenu() {
+  document.getElementById('chat-ctx-overlay')?.remove();
+  document.getElementById('chat-ctx-menu')?.remove();
+}
+
+function startEditMessage(msgId) {
+  const wrapper = document.querySelector(`.chat-bubble-wrapper[data-msg-id="${msgId}"]`);
+  if (!wrapper) return;
+
+  editingMessageId = msgId;
+  const bubble = wrapper.querySelector('.chat-bubble');
+  const textDiv = bubble?.querySelector('div:first-child');
+  const currentText = textDiv?.textContent || '';
+
+  // Replace bubble content with edit input
+  const editRow = document.createElement('div');
+  editRow.className = 'chat-edit-row';
+  editRow.innerHTML = `
+    <input class="chat-edit-input" id="chat-edit-input" value="${escapeHtml(currentText)}" />
+    <button class="chat-edit-btn chat-edit-save" id="chat-edit-save">Save</button>
+    <button class="chat-edit-btn chat-edit-cancel" id="chat-edit-cancel">✕</button>
+  `;
+  wrapper.appendChild(editRow);
+
+  const editInput = document.getElementById('chat-edit-input');
+  editInput?.focus();
+  editInput?.select();
+
+  document.getElementById('chat-edit-save')?.addEventListener('click', () => saveEditMessage(msgId));
+  document.getElementById('chat-edit-cancel')?.addEventListener('click', () => cancelEditMessage());
+  editInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveEditMessage(msgId);
+    if (e.key === 'Escape') cancelEditMessage();
+  });
+}
+
+async function saveEditMessage(msgId) {
+  const editInput = document.getElementById('chat-edit-input');
+  const newText = editInput?.value?.trim();
+  if (!newText || !msgId) return;
+
+  try {
+    const res = await api.put(`/api/chat/message/${msgId}`, { text: newText });
+    if (res.success) {
+      editingMessageId = null;
+      loadMessages(true); // Refresh messages
+    }
+  } catch {
+    // silently fail
+  }
+}
+
+function cancelEditMessage() {
+  editingMessageId = null;
+  loadMessages(true); // Refresh to restore original
+}
+
+async function deleteMessage(msgId) {
+  if (!msgId) return;
+  try {
+    const res = await api.delete(`/api/chat/message/${msgId}`);
+    if (res.success) {
+      loadMessages(true); // Refresh messages
+    }
+  } catch {
+    // silently fail
   }
 }
 

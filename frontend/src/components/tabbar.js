@@ -1,6 +1,6 @@
 /**
  * Bottom tab bar component for Bikers Hub
- * 5 tabs: Home, Clubs, + Create, Search, Profile
+ * 5 tabs: Home, Club, Maps, Search, Profile
  */
 
 const tabs = [
@@ -15,7 +15,7 @@ const tabs = [
   },
   {
     id: 'clubs',
-    label: 'Clubs',
+    label: 'Club',
     path: '/clubs',
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
@@ -25,13 +25,12 @@ const tabs = [
     </svg>`,
   },
   {
-    id: 'create',
-    label: '',
-    path: '/create-post',
-    isCreate: true,
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <line x1="12" y1="5" x2="12" y2="19"/>
-      <line x1="5" y1="12" x2="19" y2="12"/>
+    id: 'maps',
+    label: 'Maps',
+    path: '/maps',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+      <circle cx="12" cy="10" r="3"/>
     </svg>`,
   },
   {
@@ -63,17 +62,6 @@ export function renderTabBar(activeTab) {
   const tabItems = tabs
     .map((tab) => {
       const isActive = tab.id === activeTab;
-
-      if (tab.isCreate) {
-        return `
-          <button class="tab-bar-item tab-bar-create" onclick="navigate('${tab.path}')">
-            <div class="tab-bar-create-circle">
-              ${tab.icon}
-            </div>
-          </button>
-        `;
-      }
-
       return `
         <button class="tab-bar-item${isActive ? ' active' : ''}" onclick="navigate('${tab.path}')">
           ${tab.icon}

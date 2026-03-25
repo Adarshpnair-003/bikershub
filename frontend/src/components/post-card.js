@@ -80,13 +80,15 @@ export function renderPostCard(post) {
   return `
     <div class="post-card-dark" data-post-id="${post._id}">
       <div class="post-card-header">
-        ${avatarHtml}
-        <span class="post-card-author">${username}</span>
+        <a class="post-card-author-link" href="#/user/${author._id || ''}" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit;">
+          ${avatarHtml}
+          <span class="post-card-author">${username}</span>
+        </a>
         <span class="post-card-time">&middot; ${time}</span>
       </div>
       ${imageHtml}
       <div class="post-card-actions">
-        <button class="post-action-btn like-btn" data-post-id="${post._id}">
+        <button class="post-action-btn like-btn ${isLiked ? 'liked' : ''}" data-post-id="${post._id}">
           ${heartIcon}
         </button>
         <button class="post-action-btn comment-btn" data-post-id="${post._id}">
@@ -100,7 +102,7 @@ export function renderPostCard(post) {
       <div class="post-card-caption">
         <strong>${username}</strong> ${truncated}${readMore}
       </div>
-      ${commentsCount > 0 ? `<div class="post-card-comments-link">View all ${formatCount(commentsCount)} comments</div>` : ''}
+      ${commentsCount > 0 ? `<a href="#/posts/${post._id}" class="post-card-comments-link" style="text-decoration: none; color: #6b7280; cursor: pointer;">View all ${formatCount(commentsCount)} comments</a>` : ''}
     </div>
   `;
 }

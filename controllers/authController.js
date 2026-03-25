@@ -186,6 +186,16 @@ exports.googleAuth = async (req, res) => {
 };
 
 
+/* ================= LOGOUT ================= */
+exports.logout = async (req, res) => {
+  try {
+    // Client should discard tokens; server acknowledges
+    res.json({ success: true, data: null, message: "Logged out successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, error: { message: "Logout failed" } });
+  }
+};
+
 /* ================= REFRESH ACCESS TOKEN ================= */
 exports.refreshAccessToken = async (req, res) => {
   try {

@@ -176,7 +176,7 @@ async function loadProfile() {
   const editBtn = document.getElementById('profile-edit-btn');
   if (editBtn) {
     editBtn.addEventListener('click', () => {
-      alert('Edit profile coming soon');
+      navigate('/edit-profile');
     });
   }
 

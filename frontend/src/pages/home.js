@@ -10,6 +10,7 @@ import { renderTabBar } from '../components/tabbar.js';
 import { renderPostCard, formatCount } from '../components/post-card.js';
 import { openComments } from '../components/comments.js';
 
+const CREATE_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
 const BELL_ICON = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f9fafb" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`;
 const MESSAGE_ICON = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f9fafb" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
 
@@ -86,12 +87,16 @@ export function render() {
   return `
     <div class="page-dark">
       <div class="app-header">
-        <div class="app-header-title">BIKERS HUB</div>
-        <div class="app-header-actions">
-          <button class="app-header-btn" id="home-notif-btn" style="position:relative;">
-            ${BELL_ICON}
-            <span id="home-notif-badge" style="display:none;position:absolute;top:-2px;right:-4px;background:#E53935;color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 4px;"></span>
+        <div class="app-header-left">
+          <button class="home-create-btn" id="home-create-btn">
+            ${CREATE_ICON}
           </button>
+        </div>
+        <button class="app-header-title-btn" id="home-title-notif">
+          BIKERS HUB
+          <span id="home-notif-badge" class="header-badge" style="display:none;"></span>
+        </button>
+        <div class="app-header-actions">
           <button class="app-header-btn" id="home-msg-btn" style="position:relative;">
             ${MESSAGE_ICON}
             <span id="home-msg-badge" style="display:none;position:absolute;top:-2px;right:-4px;background:#E53935;color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 4px;"></span>
@@ -100,7 +105,7 @@ export function render() {
       </div>
 
       <div id="post-feed">
-        <div class="post-card-dark">Loading posts...</div>
+        <div class="post-card-dark" style="padding:20px;text-align:center;color:#6b7280;">Loading posts...</div>
       </div>
 
       ${renderTabBar('home')}
@@ -112,9 +117,14 @@ export function mount() {
   loadPosts();
   loadBadges();
 
-  const notifBtn = document.getElementById('home-notif-btn');
-  if (notifBtn) {
-    notifBtn.addEventListener('click', () => navigate('/notifications'));
+  const createBtn = document.getElementById('home-create-btn');
+  if (createBtn) {
+    createBtn.addEventListener('click', () => navigate('/create-post'));
+  }
+
+  const titleNotif = document.getElementById('home-title-notif');
+  if (titleNotif) {
+    titleNotif.addEventListener('click', () => navigate('/notifications'));
   }
 
   const msgBtn = document.getElementById('home-msg-btn');
@@ -143,7 +153,7 @@ async function loadPosts() {
   }
 
   if (posts.length === 0) {
-    feed.innerHTML = '<div class="post-card-dark">No posts yet. Be the first to share a ride!</div>';
+    feed.innerHTML = '<div class="post-card-dark" style="padding:20px;text-align:center;color:#6b7280;">No posts yet. Be the first to share a ride!</div>';
     return;
   }
 
@@ -152,32 +162,73 @@ async function loadPosts() {
 }
 
 function attachPostHandlers() {
-  // Like buttons
+  // Like buttons with animation & optimistic UI
   document.querySelectorAll('.like-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const postId = btn.dataset.postId;
       if (!postId || postId.startsWith('placeholder')) return;
+      if (btn.dataset.liking === 'true') return; // debounce
+      btn.dataset.liking = 'true';
+
+      const card = btn.closest('.post-card-dark');
+      const likesEl = card?.querySelector('.post-card-likes');
+      const wasLiked = btn.classList.contains('liked');
+
+      // Optimistic UI: toggle immediately
+      btn.classList.toggle('liked', !wasLiked);
+      btn.innerHTML = !wasLiked
+        ? `<svg width="22" height="22" viewBox="0 0 24 24" fill="#E53935" stroke="#E53935" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`
+        : `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
+
+      // Bounce animation
+      if (!wasLiked) {
+        btn.style.animation = 'none';
+        btn.offsetHeight; // reflow
+        btn.style.animation = 'heartBounce 0.4s ease';
+      }
 
       try {
         const res = await api.put(`/api/posts/like/${postId}`);
         if (res.success && res.data) {
-          // Update UI inline instead of reloading
-          const card = btn.closest('.post-card-dark');
-          if (card) {
-            const likesEl = card.querySelector('.post-card-likes');
-            if (likesEl && res.data.likesCount != null) {
-              likesEl.textContent = `${formatCount(res.data.likesCount)} likes`;
-            }
-            if (res.data.liked) {
-              btn.classList.add('liked');
-            } else {
-              btn.classList.remove('liked');
-            }
+          if (likesEl && res.data.likesCount != null) {
+            likesEl.textContent = `${formatCount(res.data.likesCount)} likes`;
           }
+          // Sync with server state
+          btn.classList.toggle('liked', res.data.liked);
+          btn.innerHTML = res.data.liked
+            ? `<svg width="22" height="22" viewBox="0 0 24 24" fill="#E53935" stroke="#E53935" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`
+            : `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
         }
       } catch {
-        // silently fail
+        // Revert optimistic UI on error
+        btn.classList.toggle('liked', wasLiked);
+      } finally {
+        btn.dataset.liking = 'false';
       }
+    });
+  });
+
+  // Double-tap to like on post images
+  document.querySelectorAll('.post-card-image').forEach((img) => {
+    let lastTap = 0;
+    img.addEventListener('click', (e) => {
+      const now = Date.now();
+      if (now - lastTap < 300) {
+        const card = img.closest('.post-card-dark');
+        const likeBtn = card?.querySelector('.like-btn');
+        if (likeBtn && !likeBtn.classList.contains('liked')) {
+          likeBtn.click();
+        }
+        // Show floating heart
+        const heart = document.createElement('div');
+        heart.innerHTML = `<svg width="60" height="60" viewBox="0 0 24 24" fill="#E53935" stroke="none"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
+        heart.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;animation:heartFloat 0.8s ease forwards;z-index:10;';
+        const parent = img.parentElement;
+        parent.style.position = 'relative';
+        parent.appendChild(heart);
+        setTimeout(() => heart.remove(), 800);
+      }
+      lastTap = now;
     });
   });
 
