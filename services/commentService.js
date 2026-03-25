@@ -24,25 +24,38 @@ exports.create = async ({ postId, content, parentComment, authorId, io }) => {
   return populated;
 };
 
-exports.getByPost = async (postId, { page = 1, limit = 10 } = {}) => {
+exports.getByPost = async (postId, { page = 1, limit = 50 } = {}) => {
   const skip = (page - 1) * limit;
-  const [comments, total] = await Promise.all([
-    Comment.find({ post: postId, parentComment: null, isDeleted: false })
+  // Fetch top-level comments (paginated) and all their replies
+  const [topLevel, topTotal] = await Promise.all([
+    Comment.find({ post: postId, parentComment: null })
       .populate("author", "username profilePic")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit))
       .lean(),
-    Comment.countDocuments({ post: postId, parentComment: null, isDeleted: false })
+    Comment.countDocuments({ post: postId, parentComment: null })
   ]);
+
+  // Get IDs of top-level comments to fetch their replies
+  const topIds = topLevel.map(c => c._id);
+  const replies = topIds.length > 0
+    ? await Comment.find({ post: postId, parentComment: { $in: topIds } })
+        .populate("author", "username profilePic")
+        .sort({ createdAt: 1 })
+        .lean()
+    : [];
+
+  // Combine: top-level + their replies, frontend separates them
+  const comments = [...topLevel, ...replies];
   return {
     comments,
     pagination: {
       page: Number(page),
       limit: Number(limit),
-      total,
-      totalPages: Math.ceil(total / limit),
-      hasMore: skip + comments.length < total
+      total: topTotal,
+      totalPages: Math.ceil(topTotal / limit),
+      hasMore: skip + topLevel.length < topTotal
     }
   };
 };

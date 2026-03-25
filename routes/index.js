@@ -13,5 +13,6 @@ router.use("/conversations", require("./conversationRoutes"));
 router.use("/search", require("./searchRoutes"));
 router.use("/upload", require("./uploadRoutes"));
 router.use("/weather", require("./weatherRoutes"));
+router.use("/routes", require("./routeRoutes"));
 
 module.exports = router;

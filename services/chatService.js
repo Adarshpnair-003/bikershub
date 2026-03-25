@@ -55,3 +55,36 @@ exports.getUnreadCount = async (userId) => {
     readBy: { $ne: userId }
   });
 };
+
+exports.editMessage = async (messageId, userId, newText, io) => {
+  const message = await Message.findById(messageId);
+  if (!message) throw new AppError("Message not found", 404, "NOT_FOUND");
+  if (message.sender.toString() !== userId) throw new AppError("Not authorized", 403, "FORBIDDEN");
+  if (message.isDeleted) throw new AppError("Cannot edit deleted message", 400, "BAD_REQUEST");
+
+  // Save original text on first edit only
+  if (!message.originalText) {
+    message.originalText = message.text;
+  }
+  message.text = newText;
+  message.isEdited = true;
+  message.editedAt = new Date();
+  await message.save();
+
+  if (io) io.to(`conversation:${message.conversation}`).emit("messageEdited", { messageId: message._id, text: newText, editedAt: message.editedAt });
+  return message;
+};
+
+exports.deleteMessage = async (messageId, userId, io) => {
+  const message = await Message.findById(messageId);
+  if (!message) throw new AppError("Message not found", 404, "NOT_FOUND");
+  if (message.sender.toString() !== userId) throw new AppError("Not authorized", 403, "FORBIDDEN");
+
+  message.isDeleted = true;
+  message.deletedAt = new Date();
+  message.text = null;
+  await message.save();
+
+  if (io) io.to(`conversation:${message.conversation}`).emit("messageDeleted", { messageId: message._id });
+  return { deleted: true };
+};

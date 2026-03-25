@@ -17,6 +17,7 @@ const envSchema = Joi.object({
   ALLOWED_ORIGINS: Joi.string().default("http://localhost:3000"),
   LOG_LEVEL: Joi.string().valid("trace", "debug", "info", "warn", "error").default("info"),
   WEATHER_API_KEY: Joi.string().optional(),
+  ORS_API_KEY: Joi.string().optional(),
   RATE_LIMIT_WINDOW_MS: Joi.number().integer().default(900000),
   RATE_LIMIT_MAX: Joi.number().integer().default(100),
 }).unknown(true); // allow other env vars (e.g., PATH, HOME)

@@ -18,4 +18,10 @@ router.put("/read/:conversationId", protect, chatCtrl.markAsRead);
 /* GET UNREAD MESSAGE COUNT */
 router.get("/unread", protect, chatCtrl.getUnreadCount);
 
+/* EDIT MESSAGE */
+router.put("/message/:messageId", protect, chatCtrl.editMessage);
+
+/* DELETE MESSAGE (unsend) */
+router.delete("/message/:messageId", protect, chatCtrl.deleteMessage);
+
 module.exports = router;

@@ -21,3 +21,13 @@ exports.getUnreadCount = catchAsync(async (req, res) => {
   const unread = await chatService.getUnreadCount(req.user.id);
   res.json(apiResponse.success({ unread }));
 });
+
+exports.editMessage = catchAsync(async (req, res) => {
+  const message = await chatService.editMessage(req.params.messageId, req.user.id, req.body.text, req.io);
+  res.json(apiResponse.success(message, "Message edited"));
+});
+
+exports.deleteMessage = catchAsync(async (req, res) => {
+  const result = await chatService.deleteMessage(req.params.messageId, req.user.id, req.io);
+  res.json(apiResponse.success(result, "Message deleted"));
+});
