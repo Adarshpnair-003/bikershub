@@ -259,6 +259,7 @@ No new URL. Existing `getLocations` service is extended to include `route` and `
 - Map preview: `route` as polyline with start (green dot) and end (red dot) markers, non-interactive static view.
 - **Replay** button → opens a modal with a scrubber; a marker animates along `route.coordinates` at 2×, 5×, 10× real-time.
 - **Close** returns to `ride-detail`.
+- **UX note on the distance number.** The live tracking page shows a running `totalDistance` fed by server `$inc` (which excludes offline-replayed frames, see §7.6). The summary hero shows the re-derived total from `route.coordinates` computed in `rideService.end`. On rides with significant offline-replay activity these two numbers can differ. Render the summary value **statically** — do **not** count-up-animate from the last running total — so the gap isn't visually surfaced. The summary value is the canonical one.
 
 ### 7.5 Battery / GPS strategy (client)
 
@@ -292,7 +293,7 @@ No new URL. Existing `getLocations` service is extended to include `route` and `
 
 | case | behaviour |
 |---|---|
-| Participant opens app mid-ride | `GET /rides/:id/track` on mount, then `joinRide`, then live updates. |
+| Participant opens app mid-ride | `GET /rides/:id/locations` (extended payload, §6) on mount, then `joinRide`, then live updates. |
 | Host crashes mid-ride | Ride remains `live`; other participants keep seeing each other. Host rejoins and continues. A scheduled watchdog (out of scope for v1) would auto-end stuck rides after 24 h. |
 | Rider closes app | `disconnect` → status `offline`. Re-opens → status flips back to `live`. |
 | Two devices, same user | Last write wins on `riderLocations` (existing upsert). Both receive broadcasts. Acceptable. |
