@@ -77,11 +77,11 @@ Changes to `models/Ride.js` are additive and small.
 ```js
 riderLocations: [{
   user: ObjectId,
-  location: { type: "Point", coordinates: [Number] },
+  location: { type: "Point", coordinates: [Number] },   // may be null if SOS before first fix
   updatedAt: Date,
   // NEW
-  batteryLevel: { type: Number, default: null },       // 0..1 when available
-  status: {                                             // NEW
+  batteryLevel: { type: Number, default: null, min: 0, max: 1 },
+  status: {                                             // NEW — advisory only (see below)
     type: String,
     enum: ["live", "stale", "offline"],
     default: "live"
@@ -91,6 +91,8 @@ riderLocations: [{
 ```
 
 No new collections. Existing caps (`riderLocations ≤ 50`, `route.coordinates ≤ 2000`) remain adequate.
+
+**Advisory status caveat.** The per-rider `status` field is an optimisation for cold-start snapshots so that a client opening the page mid-ride knows which riders look offline before any live events arrive. It is **not** the source of truth — the reaper can miss a subdoc that was trimmed by the `pre("save")` cap, and a stale status lingering on a trimmed entry is harmless because the next ping/update recreates the entry. Clients primarily drive marker state from the real-time `riderPresenceChanged` events and only fall back to the snapshot's `status` on first render.
 
 ### Ride status machine (unchanged but documented)
 
@@ -104,18 +106,25 @@ No new indexes required. `riderLocations.user` is accessed via array filter; `$ 
 ## 5. Backend components
 
 ### 5.1 Presence reaper
-New module `socket/presenceReaper.js`. A single `setInterval(10_000)` per server instance that:
-- scans live rides (status === "live") with `riderLocations.updatedAt < now - 30s && status !== "offline"`
-- flips such entries to `"stale"`; after 90 s of no update → `"offline"`
-- emits `riderPresenceChanged` to `ride:{id}`
+New module `socket/presenceReaper.js`. A single `setInterval(10_000)` per server instance that runs a two-stage pass:
 
-Implementation note: use a single aggregation pipeline with `$set` to avoid N queries; limit to a bounded number of live rides per tick.
+**Stage 1 — read.** One aggregation on `Ride` where `status === "live"`, `$unwind: riderLocations`, `$match` entries where `updatedAt < now - 30s AND status !== "offline"` (or the in-memory `lastPingMap[rideId:userId]` is also stale). Projects `{ rideId, userId, updatedAt, currentStatus, newStatus }` where `newStatus` is `"stale"` between 30–90 s and `"offline"` beyond 90 s.
+
+**Stage 2 — write + fan-out.** One `bulkWrite` with per-entry `arrayFilters` to `$set riderLocations.$[x].status`. Then iterate the result set and `io.to("ride:{rideId}").emit("riderPresenceChanged", { userId, status })`.
+
+The "single pipeline" claim in the earlier draft was misleading — nested-array status flips across many docs need a read-then-bulkWrite, and the socket fan-out needs the list of changes which a pure in-Mongo update cannot return.
+
+Liveness input is the **union** of (a) `riderLocations.updatedAt` (persisted, from `rideLocationUpdate`) and (b) `lastPingMap` (in-memory, from `ridePing`). A parked rider who stops moving but keeps heartbeat-pinging is still considered `"live"`; the reaper checks the more recent of the two.
+
+Throttles: bounded to the N most recently active live rides per tick (N = 100 for v1). If live rides exceed N, the remaining are handled on the next tick (still within 20 s of the threshold).
+
+**Note on the capped `riderLocations` array (§4).** The `pre("save")` hook in `models/Ride.js` trims the array at 50 entries. A status written by the reaper on a subdoc that gets sliced off later is silently dropped. This is acceptable: status is an optimisation hint for clients; the next ping or position update will recreate the entry, and the reaper re-applies on the next tick. Clients should treat the absence of a rider's entry in a fresh snapshot as "unknown / offline" and key primarily off the presence events.
 
 ### 5.2 SOS handler
 New event `rideSos` in `rideHandler.js`:
 - verifies sender is a ride participant
-- sets `riderLocations.$.sosRaisedAt = now`
-- emits `rideSosRaised` to `ride:{id}` with `{ userId, lat, lng, at }`
+- performs an atomic upsert mirroring `rideLocationUpdate`: first tries `$set riderLocations.$.sosRaisedAt = now` where `riderLocations.user === userId`; if no matching entry exists (rider SOS'd before ever sending a position), falls back to `$push { user, location: null, sosRaisedAt: now, updatedAt: now, status: "live" }`.
+- emits `rideSosRaised` to `ride:{id}` with `{ userId, lat, lng, at }` (lat/lng null if the rider has no position yet — client shows a "location unknown" SOS banner in that case)
 - creates a `Notification` with type `"ride_sos"` for all other participants
 - rate-limit: 1 SOS per 60 s per user to prevent accidental mashing
 
@@ -127,18 +136,25 @@ New event `ridePing` (lightweight, no coordinates):
 - does not hit the DB on the happy path; the reaper consolidates to DB
 
 ### 5.4 Disconnect cleanup (fixes known memory leak)
-In `rideHandler.js` `disconnect` hook:
-- for every ride room the socket was in, delete `lastUpdateMap` / `lastCoordMap` / `lastPingMap` keys for that `${rideId}:${userId}`
-- emit `riderPresenceChanged` with `status: "offline"` to the relevant rooms
 
-This resolves CLAUDE.md *remaining issue* #2 (`riderLocations` maps in socket handler not cleaned on disconnect).
+The handler maintains a per-`{rideId, userId}` socket reference count — `userSocketCount: Map<"rideId:userId", number>`. Incremented on `joinRide`, decremented on `leaveRide` and on socket `disconnect` for each room the socket was in.
+
+On socket `disconnect`:
+- for every ride room the disconnecting socket was in, decrement `userSocketCount["rideId:userId"]`
+- if the count reaches 0:
+  - delete `lastUpdateMap["rideId:userId"]`, `lastCoordMap["rideId:userId"]`, `lastPingMap["rideId:userId"]`
+  - emit `riderPresenceChanged` with `status: "offline"` to `ride:{id}`
+- if the count remains > 0 (user has another device still connected), emit nothing — the user is still live.
+
+This resolves CLAUDE.md *remaining issue* #2 (maps never cleaned up) **and** reconciles the "two devices, same user: acceptable" case in §8 with the offline broadcast.
 
 ### 5.5 Validation hardening
 `rideLocationUpdate` payload already rejects missing fields. Add:
 - `typeof lat === "number" && typeof lng === "number"`
 - `lat ∈ [-90, 90]`, `lng ∈ [-180, 180]`
+- `batteryLevel` (optional) clamped to `[0, 1]`; reject out-of-range values
 - reject if ride `status !== "live"`
-- reject if delta from previous coord > 5 km in < 2 s (teleport filter)
+- **Teleport filter:** reject if the *implied speed* from the last accepted coordinate exceeds **300 km/h**. Implied speed is `haversine(prev, curr) / (nowMs - prevAcceptedMs)`. Phrased this way because the existing 2-s debounce (`rideHandler.js:40`) guarantees `Δt ≥ 2 s` on the happy path, so a fixed-window "5 km in < 2 s" rule can never fire. The speed-based rule handles both the debounced cadence and longer gaps (reconnect, backgrounded app).
 
 The teleport filter prevents corrupt GPS spikes from polluting the route polyline.
 
@@ -172,9 +188,27 @@ The teleport filter prevents corrupt GPS spikes from polluting the route polylin
 | `rideEnded` | `{ rideId, endTime, summary }` |
 | `rideError` | `{ code, message }` (on auth failure — fixes remaining issue #1) |
 
-### REST (unchanged, additive endpoint only)
+### REST
 
-- `GET /api/rides/:id/track` — returns current `rideSnapshot` as HTTP (used by the page on mount before the socket snapshot arrives, so the map has data even on cold start).
+Rather than introduce a brand-new endpoint that duplicates `GET /:id/locations` + `GET /:id/route`, **extend `GET /api/rides/:id/locations`** to return the combined payload the client needs on cold start:
+
+```json
+{
+  "success": true,
+  "data": {
+    "riders": [{ "userId", "username", "lat", "lng", "updatedAt", "status", "sosRaisedAt", "batteryLevel" }],
+    "route": [[lng, lat], ...],
+    "totalDistance": Number,
+    "status": "upcoming" | "live" | "completed" | "cancelled"
+  }
+}
+```
+
+- Auth: participant-only (reuses `ride.participants.includes(req.user.id)` check already in `rideService.getLocations`).
+- Rate limit: global rate-limiter tier suffices; no per-endpoint limit needed.
+- `GET /:id/route` remains available for the post-ride summary page, but the live tracking page calls only the extended `/:id/locations` on mount, then joins the socket room for deltas.
+
+No new URL. Existing `getLocations` service is extended to include `route` and `status`.
 
 ---
 
@@ -230,25 +264,27 @@ The teleport filter prevents corrupt GPS spikes from polluting the route polylin
 
 `utils/rideGps.js` — new.
 
-| app state | speed | cadence |
-|---|---|---|
-| foreground, moving (> 5 km/h) | — | 2 s |
-| foreground, stationary | — | 10 s |
-| foreground, battery < 20 % | any | 15 s |
-| background | any | 30 s (best-effort) |
-| visible & joined but not moving > 2 min | — | pause GPS, rely on last-known |
+| app state | speed | `watchPosition` cadence | heartbeat `ridePing` |
+|---|---|---|---|
+| foreground, moving (> 5 km/h) | — | 2 s | 10 s |
+| foreground, stationary | — | 10 s | 10 s |
+| foreground, battery < 20 % | any | 15 s | 10 s |
+| background | any | 30 s (best-effort) | 10 s |
+| stationary > 2 min | — | **pause** `watchPosition` | **10 s (continues)** |
 
 - Uses `@capacitor/geolocation` `watchPosition` with `enableHighAccuracy: true`; falls back to `false` when battery is low.
-- On position error (timeout / unavailable), emits `ridePing` only, so presence stays live even without a fresh fix.
-- Heartbeat ping every 10 s regardless.
+- On position error (timeout / unavailable), `watchPosition` is reissued on the next tick, but `ridePing` keeps flowing unconditionally.
+- The "stationary > 2 min" row is the subtle one: GPS fixing pauses, but the heartbeat continues every 10 s. The **presence reaper treats heartbeats as liveness** (§5.1), so the rider stays `"live"` for peers even with no position updates. Their marker simply stops moving — which is correct. The moment any position fix arrives (user moves, or watch re-enables on speed trigger), normal cadence resumes.
+- Movement detection: if two consecutive low-cadence fixes indicate motion above a 2 km/h threshold, the watcher reopens at 2 s cadence before the 2 min timer expires.
 
 ### 7.6 Offline queue (client)
 
 `utils/gpsQueue.js` — new.
 
 - When socket is disconnected, positions are pushed into an in-memory ring buffer (cap 60 entries = ~2 min at 2 s cadence).
-- On `socket.connect`, the queue is drained via a single batched `rideLocationUpdate` per entry, throttled to one emit per 100 ms, **and** each entry carries its original `ts`.
+- On `socket.connect`, the queue is drained via a single batched `rideLocationUpdate` per entry, emitted **in `ts` ascending order**, throttled to one emit per 100 ms, **and** each entry carries its original client `ts`.
 - Server rejects entries older than 5 min (prevents replay / backfill of arbitrary history).
+- **Distance accumulation on replayed frames:** replayed entries (those with a client-supplied `ts` older than `nowMs - 10 s`) are persisted into `route.coordinates` and `riderLocations` but are **not** counted toward `$inc: totalDistance` on the server and do **not** advance `lastCoordMap`. This prevents inflated stats when clients flush a backlog. The canonical distance for the ride is re-derived from `route.coordinates` in `rideService.end` (sum of Haversine segments after sorting by insertion order), replacing the running `$inc`. Clients display the running `$inc` during the ride as a best-effort approximation and the re-derived value after `rideEnded`.
 
 ---
 
@@ -294,9 +330,12 @@ The teleport filter prevents corrupt GPS spikes from polluting the route polylin
 - Host starts ride → status flips → participants can join socket room.
 - Location update writes to `riderLocations` and pushes into `route.coordinates`.
 - Non-participant's location update is rejected.
-- Disconnect emits `riderPresenceChanged(offline)`.
-- SOS persists `sosRaisedAt`, broadcasts event, creates notifications.
+- Disconnect emits `riderPresenceChanged(offline)` **only when the user's last socket disconnects** (second device open → no offline event).
+- SOS persists `sosRaisedAt`, broadcasts event, creates notifications; SOS before any position update creates a `riderLocations` entry with null location.
 - End ride freezes further updates (`RIDE_NOT_ACTIVE`).
+- Teleport filter: a `rideLocationUpdate` whose implied speed from the previous accepted point exceeds 300 km/h is rejected and the client receives `rideError`.
+- Offline queue replay: a batch of 10 positions with client `ts` spanning the last 30 s is persisted to `route.coordinates` in order, but `totalDistance` is not incremented by $inc for replayed frames; `rideService.end` then re-derives the correct total.
+- Presence transitions: `live → stale` after 30 s without update/ping, `stale → offline` after 90 s, `offline → live` on next ping, `stale → live` on next update. All three boundary timings asserted with clock mocking.
 
 ### Socket
 - Test with `socket.io-client` in integration suite: two clients, one host, one participant; assert event fan-out.
@@ -310,16 +349,21 @@ The teleport filter prevents corrupt GPS spikes from polluting the route polylin
 
 ## 11. Phasing
 
-Six small, shippable slices:
+Six small, shippable slices. Dependencies between phases are explicit:
 
-**P1 — Disconnect cleanup + error emission** (CLAUDE.md remaining issues #1, #2). Pure backend.
-**P2 — Presence (ping + reaper + status field).** Backend + tiny client ping loop.
-**P3 — Live map page (`ride-track.js`).** Reads snapshot, renders markers, listens to updates. No SOS, no offline queue.
-**P4 — Adaptive GPS + offline queue.** Client-only polish.
-**P5 — SOS + SOS notifications.** Backend + UI button + banner.
-**P6 — Replay + summary page.** Uses already-persisted `route.coordinates`.
+**P1 — Disconnect cleanup + error emission + `userSocketCount`.** CLAUDE.md remaining issues #1, #2. Pure backend. Independent. Introduces the per-`{rideId, userId}` socket count (§5.4) that P2 depends on.
 
-Each phase is independently mergeable and leaves the app in a working state.
+**P2 — Presence (ping + reaper + status field).** Depends on **P1** — without the `userSocketCount` fix, P2 would emit spurious `offline` events on transient socket reconnects and on users with multiple devices. Backend + tiny client ping loop.
+
+**P3 — Live map page (`ride-track.js`) + extended `GET /:id/locations`.** Depends on **P2** (reads presence status). Renders markers, listens to updates. No SOS, no offline queue yet.
+
+**P4 — Adaptive GPS + offline queue.** Depends on **P2** — the server-side `ts` acceptance window (§5.5, §7.6) must already exist in the `rideLocationUpdate` validator. Predominantly client-side polish.
+
+**P5 — SOS + SOS notifications.** Depends on **P3** (banner needs the live map UI). Backend event + UI button + peer banner.
+
+**P6 — Replay + summary page + end-of-ride distance recomputation.** Depends on **P4** (otherwise recomputed distance will already match running `$inc` and the recomputation is unnecessary). UI on post-ride data only, but the server's `rideService.end` change to re-derive `totalDistance` from `route.coordinates` lands here.
+
+Each phase is independently mergeable and leaves the app in a working state. Phases P3 onward require all prior phases; P1 ships alone.
 
 ---
 
@@ -337,12 +381,13 @@ Each phase is independently mergeable and leaves the app in a working state.
 
 ```
 models/Ride.js                          MODIFY (add 3 fields on riderLocations)
-socket/rideHandler.js                   MODIFY (ping, sos, disconnect cleanup, error emit, teleport filter)
-socket/presenceReaper.js                NEW
-services/rideService.js                 MODIFY (track/summary helpers)
-controllers/rideController.js           MODIFY (+ GET /:id/track)
-routes/rideRoutes.js                    MODIFY (new route)
-validators/rideValidator.js             MODIFY (location schema: batteryLevel, ts)
+socket/rideHandler.js                   MODIFY (ping, sos w/ upsert, disconnect cleanup
+                                        w/ userSocketCount, error emit, teleport filter)
+socket/presenceReaper.js                NEW (read aggregation + bulkWrite + fan-out)
+services/rideService.js                 MODIFY (getLocations extended w/ route + status;
+                                        end() re-derives totalDistance from route.coordinates)
+controllers/rideController.js           MODIFY (getLocations payload change only)
+validators/rideValidator.js             MODIFY (location schema: batteryLevel 0-1, ts)
 
 frontend/src/pages/ride-track.js        NEW
 frontend/src/pages/ride-summary.js      NEW
@@ -351,9 +396,11 @@ frontend/src/utils/rideGps.js           NEW
 frontend/src/utils/gpsQueue.js          NEW
 frontend/src/utils/rideSocket.js        NEW (namespace-scoped client)
 
-tests/unit/rideGps.test.js              NEW
-tests/unit/gpsQueue.test.js             NEW
-tests/integration/rideTracking.test.js  NEW
+tests/unit/rideGps.test.js              NEW (cadence decision matrix)
+tests/unit/gpsQueue.test.js             NEW (order, age filter, max-size eviction)
+tests/integration/rideTracking.test.js  NEW (socket fan-out, presence transitions,
+                                        multi-device disconnect, teleport, SOS upsert,
+                                        offline replay distance semantics)
 ```
 
-Total: 7 new files, 7 modified.
+Total: 7 new files, 6 modified. No new REST route added — existing `GET /:id/locations` is extended.
