@@ -52,3 +52,47 @@ describe("bikeService.createBike", () => {
     spy.mockRestore();
   });
 });
+
+describe("bikeService.listByUser", () => {
+  it("returns bikes sorted by isPrimary desc, then createdAt desc", async () => {
+    const user = await createUser();
+    const oldest = await createBike(user._id, { model: "Old" });
+    // Small delays so createdAt order is deterministic
+    await new Promise((r) => setTimeout(r, 5));
+    const middle = await createBike(user._id, { model: "Middle" });
+    await new Promise((r) => setTimeout(r, 5));
+    const primary = await createBike(user._id, { model: "Primary", isPrimary: true });
+
+    const list = await bikeService.listByUser(user._id.toString());
+
+    expect(list).toHaveLength(3);
+    expect(list[0]._id.toString()).toBe(primary._id.toString());
+    expect(list[1]._id.toString()).toBe(middle._id.toString());
+    expect(list[2]._id.toString()).toBe(oldest._id.toString());
+  });
+
+  it("returns empty array if user has no bikes", async () => {
+    const user = await createUser();
+    const list = await bikeService.listByUser(user._id.toString());
+    expect(list).toEqual([]);
+  });
+});
+
+describe("bikeService.getById", () => {
+  it("returns the bike with populated owner", async () => {
+    const user = await createUser({ username: "rider1" });
+    const bike = await createBike(user._id);
+
+    const found = await bikeService.getById(bike._id.toString());
+
+    expect(found._id.toString()).toBe(bike._id.toString());
+    expect(found.owner.username).toBe("rider1");
+  });
+
+  it("throws NOT_FOUND for missing bike", async () => {
+    const mongoose = require("mongoose");
+    const fakeId = new mongoose.Types.ObjectId();
+    await expect(bikeService.getById(fakeId.toString()))
+      .rejects.toMatchObject({ statusCode: 404, code: "NOT_FOUND" });
+  });
+});
