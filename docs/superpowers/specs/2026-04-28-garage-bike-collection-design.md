@@ -44,7 +44,7 @@ The feature is implemented as a new `Bike` resource in the existing layered MVC 
   owner:    { type: ObjectId, ref: "User", required: true, index: true },
   brand:    { type: String, required: true, trim: true, maxlength: 50 },
   model:    { type: String, required: true, trim: true, maxlength: 50 },
-  year:     { type: Number, required: true, min: 1900, max: <currentYear+1> },
+  year:     { type: Number, required: true, min: 1900, max: new Date().getFullYear() + 1 },
   type:     { type: String, enum: ["sport","cruiser","adventure","naked","tourer","off-road","scooter","other"], required: true },
   engineCC: { type: Number, required: true, min: 50, max: 3000 },
   color:    { type: String, required: true, trim: true, maxlength: 30 },
@@ -63,10 +63,12 @@ The feature is implemented as a new `Bike` resource in the existing layered MVC 
 - `{ owner: 1, isPrimary: 1 }` — supports the "current ride lookup" used in the garage list sort and inside `setPrimary`.
 
 ### 3.3 Constraints (enforced in `bikeService`)
-- **Per-user cap of 10 bikes.** Hard-coded constant `MAX_BIKES_PER_USER = 10` in service. `Bike.countDocuments({ owner }) >= 10` on create → `AppError(400, "GARAGE_FULL")`.
+- **Per-user cap of 10 bikes.** Hard-coded constant `MAX_BIKES_PER_USER = 10` in service. `Bike.countDocuments({ owner }) >= 10` on create → `throw new AppError("Garage limit reached (10 bikes). Delete one to add another.", 400, "GARAGE_FULL")`.
 - **At most one primary bike per owner.** Enforced in `bikeService.setPrimary()`: `updateMany({ owner, _id: { $ne: bikeId } }, { isPrimary: false })` followed by `findByIdAndUpdate(bikeId, { isPrimary: true })`. Worst-case window is milliseconds — no transaction required.
 - **Photo is required** at create time (validator + multer middleware).
 - **No `User.garage` array.** The User document stays slim. Garage queries go directly against the `bikes` collection by owner id.
+
+> **`AppError` constructor signature** is `new AppError(message, statusCode, code)` (see `utils/AppError.js`). All `AppError` invocations in this spec use that order.
 
 ---
 
@@ -95,8 +97,8 @@ All routes return the standard envelope:
 
 ### 4.3 Authorization rules
 All authorization happens **inside the service layer**, not in middleware (matches the existing pattern in `rideService`, `clubService`).
-- `updateBike`, `setPrimary`, `deleteBike` → `if (String(bike.owner) !== String(userId)) throw new AppError(403, "FORBIDDEN", "You do not own this bike")`.
-- 404 and "not owned by you" share the same response shape (404 NOT_FOUND for both) to prevent existence probing.
+- `updateBike`, `setPrimary`, `deleteBike` → `if (String(bike.owner) !== String(userId)) throw new AppError("Bike not found", 404, "NOT_FOUND")`. Note: returns 404 (not 403) to prevent existence probing — matches §7.1 below.
+- Bike not found → `throw new AppError("Bike not found", 404, "NOT_FOUND")`. Same message in both cases.
 
 ---
 
@@ -129,11 +131,35 @@ Joi schemas:
 Thin `catchAsync` wrappers. Each method extracts `req.user.id`, validated body, and `req.params.id`, calls the service, returns `apiResponse.success(...)`. Pattern identical to `rideController`.
 
 ### 5.5 `routes/bikeRoutes.js`
-Wires controller methods, applies `protect` / `optionalAuth` / `validate(schema)` / `uploadLimiter` / `upload.single("photo")` as appropriate. `routes/index.js` adds one line: `router.use("/bikes", require("./bikeRoutes"));`.
+
+`routes/index.js` adds one line: `router.use("/bikes", require("./bikeRoutes"));`.
+
+**Middleware ordering** — important: multer must run **before** `validate()` because Joi validates `req.body`, which is empty until multer parses the multipart payload. This matches the existing pattern in `routes/postRoutes.js`.
+
+| Route | Middleware chain (in order) |
+|---|---|
+| `POST /api/bikes` | `uploadLimiter, protect, upload.single("photo"), validate(createBikeSchema), bikeController.create` |
+| `GET /api/bikes/user/:userId` | `optionalAuth, bikeController.listByUser` |
+| `GET /api/bikes/:id` | `optionalAuth, bikeController.getById` |
+| `PUT /api/bikes/:id` | `uploadLimiter, protect, upload.single("photo"), validate(updateBikeSchema), bikeController.update` |
+| `PUT /api/bikes/:id/primary` | `protect, bikeController.setPrimary` |
+| `DELETE /api/bikes/:id` | `protect, bikeController.remove` |
+
+Note: `uploadLimiter` is currently defined in `middleware/rateLimiter.js` but not yet applied to any existing route. Bike routes will be its first consumer; applying it to `/api/upload/*` is an out-of-scope follow-up.
 
 ### 5.6 Cloudinary integration
 - Folder: `bikerhub/garage`.
-- Transformations: `[{ width: 1200, crop: "limit" }, { quality: "auto", fetch_format: "auto" }]` — keeps file size down on slow networks while preserving display fidelity at 4:3 in the grid and at full resolution on detail page.
+- Upload call (matches `services/postService.js` pattern — params at upload time, not eager transformations):
+  ```javascript
+  cloudinary.uploader.upload(file.path, {
+    folder: "bikerhub/garage",
+    resource_type: "image",
+    transformation: [{ width: 1200, crop: "limit" }],
+    quality: "auto",
+    fetch_format: "auto"
+  })
+  ```
+  Caps long edge at 1200px to bound file size on slow networks while preserving display fidelity at 4:3 in the grid and at full resolution on detail page.
 - Stored on bike doc as `{ url, public_id }` matching the existing `User.profilePic` shape.
 
 ---
@@ -181,31 +207,57 @@ When **Garage** tab is active, render a 2-column responsive grid of `.gar-card` 
 
 All new pages namespace their CSS via class prefixes (`.ab-`, `.eb-`, `.bd-`) and embed a `<style>` block in their `render()` return — matches the v2 page convention.
 
+**Cleanup exports.** Each new page that owns lifecycle resources exports a `cleanup()` function alongside `render()` and `mount()`:
+- `add-bike.js` and `edit-bike.js` — revoke any blob URLs from `URL.createObjectURL` used for the photo preview.
+- `bike-detail.js` — currently no timers/listeners requiring cleanup, but exports a no-op `cleanup()` so the route registration shape is uniform.
+
+Route registrations (§6.4) pass `cleanup*` as the 4th arg to `showPage()` so `frontend/src/main.js` invokes them on navigation.
+
 ### 6.3 Shared utilities
 
 **`frontend/src/utils/bikeApi.js`** — single export:
 ```javascript
 export const bikeApi = {
-  create(formData)        { return api.upload('/api/bikes', formData); },
-  listByUser(userId)      { return api.get('/api/bikes/user/' + userId); },
-  get(bikeId)             { return api.get('/api/bikes/' + bikeId); },
-  update(bikeId, formData){ return api.upload('/api/bikes/' + bikeId, formData, 'PUT'); },
-  setPrimary(bikeId)      { return api.put('/api/bikes/' + bikeId + '/primary'); },
-  remove(bikeId)          { return api.delete('/api/bikes/' + bikeId); },
+  create(formData)         { return api.upload('/api/bikes', formData); },
+  listByUser(userId)       { return api.get('/api/bikes/user/' + userId); },
+  get(bikeId)              { return api.get('/api/bikes/' + bikeId); },
+  update(bikeId, formData) { return api.upload('/api/bikes/' + bikeId, formData, 'PUT'); },
+  setPrimary(bikeId)       { return api.put('/api/bikes/' + bikeId + '/primary', {}); },
+  remove(bikeId)           { return api.delete('/api/bikes/' + bikeId); },
 };
 ```
 
-> **Note:** `api.upload` currently only supports POST. Adding an optional method parameter (default `'POST'`) is a small extension to `frontend/src/utils/api.js` — included in the implementation plan.
+> **`api.upload` extension** — required change to `frontend/src/utils/api.js`:
+>
+> Current signature: `async upload(url, formData) → POST`.
+> New signature: `async upload(url, formData, method = 'POST')`.
+>
+> Implementation: pass `method` through to the underlying `request(url, { method, headers, body })`. Only one new line of code. Verified safe: existing callers `create-post.js:168` and `edit-profile.js:180` both pass exactly two args, so the default keeps them on POST. Empty `{}` body passed to `api.put` for setPrimary keeps fetch from sending `body: undefined`.
 
 ### 6.4 Routes registration
 
-`frontend/src/main.js` adds three `registerRoute` calls:
+`frontend/src/main.js` adds three imports and three `registerRoute` calls:
 ```javascript
-registerRoute('/add-bike', () => { if (!requireAuth()) return; showPage(renderAddBike, mountAddBike); });
-registerRoute('/edit-bike/:id', (ctx) => { if (!requireAuth()) return; showPage(() => renderEditBike(ctx), () => mountEditBike(ctx)); });
-registerRoute('/garage/:userId/:bikeId', (ctx) => showPage(() => renderBikeDetail(ctx), () => mountBikeDetail(ctx)));
+import { render as renderAddBike, mount as mountAddBike, cleanup as cleanupAddBike } from './pages/add-bike.js';
+import { render as renderEditBike, mount as mountEditBike, cleanup as cleanupEditBike } from './pages/edit-bike.js';
+import { render as renderBikeDetail, mount as mountBikeDetail, cleanup as cleanupBikeDetail } from './pages/bike-detail.js';
+
+registerRoute('/add-bike', () => {
+  if (!requireAuth()) return;
+  showPage(renderAddBike, mountAddBike, null, cleanupAddBike);
+});
+
+registerRoute('/edit-bike/:id', (ctx) => {
+  if (!requireAuth()) return;
+  showPage(() => renderEditBike(ctx), () => mountEditBike(ctx), null, cleanupEditBike);
+});
+
+registerRoute('/garage/:userId/:bikeId', (ctx) => {
+  showPage(() => renderBikeDetail(ctx), () => mountBikeDetail(ctx), null, cleanupBikeDetail);
+});
 ```
-Plus three new imports at the top.
+
+The 3rd `showPage` arg is unused for these pages (reserved by main.js convention). The 4th is the cleanup function — required for blob-URL teardown on add-bike/edit-bike.
 
 ### 6.5 Profile fetch flow
 
@@ -223,13 +275,13 @@ Tab badge count comes directly from `garageRes.data.length`. No backend aggregat
 ## 7. Edge cases & error handling
 
 ### 7.1 Backend
-- **Cap exceeded** → `AppError(400, "GARAGE_FULL", "Garage limit reached (10 bikes). Delete one to add another.")`.
-- **Bike not found / not owned** → both surface as `AppError(404, "NOT_FOUND", "Bike not found")`. Same message in both cases prevents existence probing.
+- **Cap exceeded** → `throw new AppError("Garage limit reached (10 bikes). Delete one to add another.", 400, "GARAGE_FULL")`.
+- **Bike not found / not owned** → both surface as `throw new AppError("Bike not found", 404, "NOT_FOUND")`. Same message and status in both cases prevents existence probing.
 - **Cloudinary upload fails before doc create** → 502 `UPLOAD_FAILED`, multer temp file cleaned via `fs.promises.unlink`, no doc created.
 - **Cloudinary upload succeeds but Mongo create fails** → catch block destroys the orphaned asset, then rethrows.
 - **PUT with new photo: upload new → save doc → destroy old.** If destroy fails, log warning, return success. Orphaned media is fixable; broken UX is not.
 - **Concurrent setPrimary** → worst case is two bikes briefly flagged primary. Idempotent retries from the client converge. No transaction.
-- **DELETE of primary bike** → no auto-promotion. The "Current ride" pin disappears; user explicitly sets a new one. Simpler, no surprise behavior.
+- **DELETE of primary bike** → no auto-promotion. The "Current ride" pin disappears; user explicitly sets a new one. Frontend treats "no bike has `isPrimary: true`" as a valid empty-primary state — no broken star, no error banner. Simpler, no surprise behavior.
 
 ### 7.2 Frontend
 - **Unsaved changes guard** on add-bike/edit-bike: if user taps back with dirty form, confirm dialog "Discard changes?".
@@ -300,12 +352,12 @@ Mock Cloudinary via `jest.mock('../../config/cloudinary')` returning fakes for `
 - `frontend/src/pages/edit-bike.js`
 - `frontend/src/pages/bike-detail.js`
 
-### Modified files (4)
+### Modified files (5)
 - `routes/index.js` — register `/bikes` router.
-- `frontend/src/main.js` — three new `registerRoute` calls + imports.
+- `frontend/src/main.js` — three new `registerRoute` calls + imports (with cleanup exports).
 - `frontend/src/pages/profile.js` — tab strip, garage grid, FAB.
 - `frontend/src/pages/user-profile.js` — tab strip, garage grid (read-only).
-- `frontend/src/utils/api.js` — extend `upload()` to accept optional method (`POST` default, allow `PUT`).
+- `frontend/src/utils/api.js` — extend `upload()` to accept optional `method` parameter (`POST` default, allow `PUT`).
 
 ---
 
