@@ -164,3 +164,87 @@ describe("bikeService.updateBike", () => {
     ).rejects.toMatchObject({ statusCode: 404, code: "NOT_FOUND" });
   });
 });
+
+describe("bikeService.setPrimary", () => {
+  it("flips target to primary and unsets siblings", async () => {
+    const user = await createUser();
+    const a = await createBike(user._id, { model: "A", isPrimary: true });
+    const b = await createBike(user._id, { model: "B" });
+
+    const result = await bikeService.setPrimary(user._id.toString(), b._id.toString());
+
+    expect(result.isPrimary).toBe(true);
+    const aReloaded = await Bike.findById(a._id);
+    expect(aReloaded.isPrimary).toBe(false);
+  });
+
+  it("is idempotent — calling on already-primary leaves state correct", async () => {
+    const user = await createUser();
+    const a = await createBike(user._id, { isPrimary: true });
+
+    const result = await bikeService.setPrimary(user._id.toString(), a._id.toString());
+
+    expect(result.isPrimary).toBe(true);
+    const others = await Bike.find({ owner: user._id, isPrimary: true });
+    expect(others).toHaveLength(1);
+  });
+
+  it("throws 404 when caller is not owner", async () => {
+    const owner = await createUser();
+    const attacker = await createUser();
+    const bike = await createBike(owner._id);
+
+    await expect(
+      bikeService.setPrimary(attacker._id.toString(), bike._id.toString())
+    ).rejects.toMatchObject({ statusCode: 404, code: "NOT_FOUND" });
+  });
+});
+
+describe("bikeService.deleteBike", () => {
+  beforeEach(() => { jest.clearAllMocks(); });
+
+  it("deletes the bike and destroys Cloudinary asset", async () => {
+    const user = await createUser();
+    const bike = await createBike(user._id);
+
+    await bikeService.deleteBike(user._id.toString(), bike._id.toString());
+
+    const found = await Bike.findById(bike._id);
+    expect(found).toBeNull();
+    expect(cloudinary.uploader.destroy).toHaveBeenCalledWith(bike.photo.public_id);
+  });
+
+  it("does not auto-promote another bike when deleting the primary", async () => {
+    const user = await createUser();
+    const primary = await createBike(user._id, { isPrimary: true });
+    const other = await createBike(user._id);
+
+    await bikeService.deleteBike(user._id.toString(), primary._id.toString());
+
+    const reloaded = await Bike.findById(other._id);
+    expect(reloaded.isPrimary).toBe(false);
+  });
+
+  it("throws 404 when caller is not owner", async () => {
+    const owner = await createUser();
+    const attacker = await createUser();
+    const bike = await createBike(owner._id);
+
+    await expect(
+      bikeService.deleteBike(attacker._id.toString(), bike._id.toString())
+    ).rejects.toMatchObject({ statusCode: 404, code: "NOT_FOUND" });
+    const stillThere = await Bike.findById(bike._id);
+    expect(stillThere).not.toBeNull();
+  });
+
+  it("succeeds even if Cloudinary destroy fails", async () => {
+    const user = await createUser();
+    const bike = await createBike(user._id);
+    cloudinary.uploader.destroy.mockRejectedValueOnce(new Error("cloudinary down"));
+
+    await bikeService.deleteBike(user._id.toString(), bike._id.toString());
+
+    const found = await Bike.findById(bike._id);
+    expect(found).toBeNull();
+  });
+});
