@@ -64,6 +64,35 @@ exports.getById = async (bikeId) => {
   return bike;
 };
 
+const ALLOWED_UPDATE_FIELDS = ["brand", "model", "year", "type", "engineCC", "color", "nickname"];
+
+exports.updateBike = async (userId, bikeId, fields, photoFile) => {
+  const bike = await Bike.findById(bikeId);
+  if (!bike) throw new AppError("Bike not found", 404, "NOT_FOUND");
+  if (String(bike.owner) !== String(userId)) {
+    // 404 not 403 — existence-probing prevention (spec 4.3)
+    throw new AppError("Bike not found", 404, "NOT_FOUND");
+  }
+
+  // Allowlist update — never spread untrusted input
+  for (const key of ALLOWED_UPDATE_FIELDS) {
+    if (fields[key] !== undefined) bike[key] = fields[key];
+  }
+
+  // Optional photo replacement
+  if (photoFile) {
+    const oldPublicId = bike.photo?.public_id;
+    const newPhoto = await uploadBikePhoto(photoFile);
+    bike.photo = newPhoto;
+    await bike.save();
+    if (oldPublicId) await destroyPhoto(oldPublicId);
+    return bike.toObject();
+  }
+
+  await bike.save();
+  return bike.toObject();
+};
+
 exports.MAX_BIKES_PER_USER = MAX_BIKES_PER_USER;
 exports._uploadBikePhoto = uploadBikePhoto;
 exports._destroyPhoto = destroyPhoto;

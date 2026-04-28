@@ -96,3 +96,71 @@ describe("bikeService.getById", () => {
       .rejects.toMatchObject({ statusCode: 404, code: "NOT_FOUND" });
   });
 });
+
+describe("bikeService.updateBike", () => {
+  beforeEach(() => { jest.clearAllMocks(); });
+
+  it("updates allowed fields", async () => {
+    const user = await createUser();
+    const bike = await createBike(user._id);
+    const updated = await bikeService.updateBike(
+      user._id.toString(),
+      bike._id.toString(),
+      { color: "Black", nickname: "Beast" },
+      null
+    );
+    expect(updated.color).toBe("Black");
+    expect(updated.nickname).toBe("Beast");
+  });
+
+  it("ignores unknown fields and blocks mass-assignment of owner/isPrimary", async () => {
+    const user = await createUser();
+    const bike = await createBike(user._id);
+    const updated = await bikeService.updateBike(
+      user._id.toString(),
+      bike._id.toString(),
+      { color: "Black", owner: "ATTACK", isPrimary: true },
+      null
+    );
+    expect(updated.color).toBe("Black");
+    expect(String(updated.owner)).toBe(String(user._id));
+    expect(updated.isPrimary).toBe(false);
+  });
+
+  it("replaces photo and destroys old asset", async () => {
+    const user = await createUser();
+    const bike = await createBike(user._id);
+    const fakeFile = { path: "/tmp/new.jpg" };
+    const oldPublicId = bike.photo.public_id;
+
+    await bikeService.updateBike(
+      user._id.toString(),
+      bike._id.toString(),
+      {},
+      fakeFile
+    );
+
+    expect(cloudinary.uploader.upload).toHaveBeenCalled();
+    expect(cloudinary.uploader.destroy).toHaveBeenCalledWith(oldPublicId);
+  });
+
+  it("throws 404 when caller is not owner (existence-probing prevention)", async () => {
+    const owner = await createUser();
+    const attacker = await createUser();
+    const bike = await createBike(owner._id);
+
+    await expect(
+      bikeService.updateBike(attacker._id.toString(), bike._id.toString(), { color: "Black" }, null)
+    ).rejects.toMatchObject({ statusCode: 404, code: "NOT_FOUND" });
+  });
+
+  it("throws 404 when bike does not exist", async () => {
+    const user = await createUser();
+    const mongoose = require("mongoose");
+    const fakeId = new mongoose.Types.ObjectId();
+
+    await expect(
+      bikeService.updateBike(user._id.toString(), fakeId.toString(), { color: "Black" }, null)
+    ).rejects.toMatchObject({ statusCode: 404, code: "NOT_FOUND" });
+  });
+});
