@@ -302,7 +302,7 @@ Tab badge count comes directly from `garageRes.data.length`. No backend aggregat
 - `setPrimary` unsets siblings (verify with second bike).
 - `setPrimary` is idempotent (calling twice on already-primary leaves correct state).
 - `deleteBike` of primary doesn't promote another.
-- Non-owner `updateBike` / `setPrimary` / `deleteBike` → `AppError(403)`.
+- Non-owner `updateBike` / `setPrimary` / `deleteBike` → `AppError("Bike not found", 404, "NOT_FOUND")` (existence-probing prevention; matches §4.3).
 - `updateBike` with new photo destroys old `public_id`.
 
 ### 8.2 Integration tests (`tests/integration/bikeRoutes.test.js`)
@@ -313,9 +313,9 @@ Mock Cloudinary via `jest.mock('../../config/cloudinary')` returning fakes for `
 - `POST /api/bikes` when at cap → 400 GARAGE_FULL.
 - `GET /api/bikes/user/:userId` returns sorted with primary first, then by `createdAt desc`.
 - `PUT /api/bikes/:id/primary` → only one primary remains across that user's bikes.
-- `PUT /api/bikes/:id` with non-owner JWT → 403.
+- `PUT /api/bikes/:id` with non-owner JWT → 404 NOT_FOUND (matches §4.3 existence-probing prevention).
 - `DELETE /api/bikes/:id` calls Cloudinary destroy mock with the bike's `public_id`.
-- `DELETE /api/bikes/:id` with non-owner JWT → 403.
+- `DELETE /api/bikes/:id` with non-owner JWT → 404 NOT_FOUND.
 
 ### 8.3 Manual QA on Android APK
 - Add bike happy path with real photo upload.
