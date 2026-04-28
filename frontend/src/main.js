@@ -4,20 +4,128 @@
  */
 
 import { registerRoute, startRouter, navigate } from './utils/router.js';
-import { isLoggedIn, loginAsGuest } from './utils/auth.js';
+import { api } from './utils/api.js';
+import { isLoggedIn, loginAsGuest, setTokens, setCurrentUser } from './utils/auth.js';
+import { SocialLogin } from '@capgo/capacitor-social-login';
 import './style.css';
+
+let googlePluginInitialized = false;
+
+function setAuthError(message) {
+  const errorEl = document.getElementById('login-error') || document.getElementById('register-error');
+  if (!errorEl) return;
+
+  if (!message) {
+    errorEl.textContent = '';
+    errorEl.classList.add('hidden');
+    return;
+  }
+
+  errorEl.textContent = message;
+  errorEl.classList.remove('hidden');
+}
+
+function getGoogleClientId() {
+  return (import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
+}
+
+async function ensureGooglePluginInitialized() {
+  if (googlePluginInitialized) return;
+
+  const clientId = getGoogleClientId();
+  if (!clientId) throw new Error('Google Client ID not configured');
+
+  await SocialLogin.initialize({
+    google: { webClientId: clientId },
+  });
+  googlePluginInitialized = true;
+}
+
+async function handleGoogleLogin() {
+  try {
+    setAuthError('');
+    await ensureGooglePluginInitialized();
+
+    const result = await SocialLogin.login({
+      provider: 'google',
+      options: { scopes: ['email', 'profile'] },
+    });
+
+    const idToken = result?.result?.idToken;
+    if (!idToken) {
+      setAuthError('Google did not return a valid credential.');
+      return;
+    }
+
+    const res = await api.post('/api/auth/google', { token: idToken });
+
+    if (!res.success || !res.data?.token || !res.data?.user) {
+      setAuthError(res.error?.message || res.message || 'Google authentication failed.');
+      return;
+    }
+
+    setAuthError('');
+    setTokens(res.data.token, res.data.refreshToken);
+    setCurrentUser(res.data.user.id, res.data.user.username);
+    navigate('/home');
+  } catch (error) {
+    console.error('Google login failed:', error);
+    if (error?.message?.includes('canceled') || error?.message?.includes('cancelled')) {
+      return; // User cancelled — don't show error
+    }
+    setAuthError('Unable to complete Google sign-in. Please try again.');
+  }
+}
+
+const GOOGLE_BTN_SVG = `<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.9 33.5 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.2-2.7-.4-3.9z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.3 15.5 18.7 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.2 26.7 36 24 36c-5.3 0-9.8-3.5-11.3-8.3l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.5l6.2 5.2C36.7 39.3 44 34 44 24c0-1.3-.2-2.7-.4-3.9z"/></svg>`;
+
+export function initGoogleButton(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const clientId = getGoogleClientId();
+  if (!clientId) {
+    container.innerHTML = `<button class="auth-social-btn" type="button" disabled>Google Sign-In not configured</button>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <button type="button" class="google-login-btn" style="
+      width: 100%; height: 48px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.2);
+      background: #000; color: #fff; font-family: 'Poppins', sans-serif; font-size: 15px;
+      font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+    ">
+      ${GOOGLE_BTN_SVG}
+      Continue with Google
+    </button>
+  `;
+
+  container.querySelector('.google-login-btn').addEventListener('click', () => {
+    void handleGoogleLogin();
+  });
+}
 
 // ============================================
 // PAGE RENDERER
 // ============================================
+
+/** Track active cleanup function so we can call it before rendering a new page */
+let activeCleanup = null;
 
 /**
  * Render a page into #app and call its mount function for event bindings
  * @param {Function} renderFn - Returns HTML string
  * @param {Function} [mountFn] - Called after HTML is inserted into DOM
  * @param {object} [context] - Passed to both render and mount
+ * @param {Function} [cleanupFn] - Called before the next page renders
  */
-function showPage(renderFn, mountFn, context = {}) {
+function showPage(renderFn, mountFn, context = {}, cleanupFn = null) {
+  // Run previous page's cleanup
+  if (activeCleanup) {
+    try { activeCleanup(); } catch { /* ignore cleanup errors */ }
+    activeCleanup = null;
+  }
+  activeCleanup = cleanupFn;
   const app = document.getElementById('app');
   app.innerHTML = renderFn(context);
   if (mountFn) {
@@ -37,319 +145,27 @@ function requireAuth() {
   return true;
 }
 
-// ============================================
-// SPLASH PAGE
-// ============================================
 
-function renderSplash() {
-  return `
-    <div class="app">
-      <div class="page page-light page-enter">
-        <div class="auth-container" style="justify-content: center; align-items: center; text-align: center;">
-          <div style="margin-bottom: 64px;">
-            <div class="auth-logo" style="font-size: 42px; margin-bottom: 8px; letter-spacing: 3px;">
-              <span class="logo-accent">BIKERS</span> HUB
-            </div>
-            <p style="font-size: 14px; color: #6b7280;">Ride Together. Ride Forever.</p>
-          </div>
-          <button class="auth-btn" style="max-width: 280px;" onclick="navigate('/login')">
-            LOGIN
-          </button>
-          <button class="auth-btn" style="max-width: 280px; margin-top: 12px;" onclick="navigate('/register')">
-            SIGN UP
-          </button>
-
-          <div class="auth-divider"><span>OR</span></div>
-
-          <button class="auth-social-btn" style="max-width: 280px;" id="guest-btn">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            Continue as Guest
-          </button>
-
-          <p class="auth-footer" style="margin-top: 16px;">
-            Already have an account? <a href="#/login">Sign In</a>
-          </p>
-        </div>
-      </div>
-    </div>
-  `;
-}
 
 // ============================================
 // LOGIN PAGE
 // ============================================
 
-function renderLogin() {
-  return `
-    <div class="app">
-      <div class="page page-light page-enter">
-        <div class="auth-container">
-          <div class="auth-logo"><span class="logo-accent">BIKERS</span> HUB</div>
-          <h1 class="auth-title">Welcome Back</h1>
-          <p class="auth-subtitle">Sign in to continue your ride</p>
 
-          <div id="login-error" class="auth-error hidden"></div>
-
-          <form id="login-form">
-            <div class="auth-input-group">
-              <label class="auth-input-label">Email</label>
-              <div class="auth-input-wrap">
-                <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="2" y="4" width="20" height="16" rx="2"/>
-                  <path d="M22 4L12 13 2 4"/>
-                </svg>
-                <input type="email" id="login-email" placeholder="your@email.com" autocomplete="email" required />
-              </div>
-            </div>
-
-            <div class="auth-input-group">
-              <label class="auth-input-label">Password</label>
-              <div class="auth-input-wrap">
-                <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2"/>
-                  <path d="M7 11V7a5 5 0 0110 0v4"/>
-                </svg>
-                <input type="password" id="login-password" placeholder="Enter your password" autocomplete="current-password" required />
-                <button type="button" class="auth-input-toggle" id="login-toggle-pw">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div class="auth-row">
-              <label class="auth-checkbox">
-                <input type="checkbox" /> Remember me
-              </label>
-              <a href="#/forgot-password">Forgot Password?</a>
-            </div>
-
-            <button type="submit" class="auth-btn" id="login-btn">SIGN IN</button>
-          </form>
-
-          <div class="auth-divider">or continue with</div>
-
-          <button class="auth-social-btn" id="google-login-btn">
-            <svg width="20" height="20" viewBox="0 0 24 24">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 001 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-            </svg>
-            Continue with Google
-          </button>
-
-          <p class="auth-footer">
-            Don't have an account? <a href="#/register">Sign Up</a>
-          </p>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function mountLogin() {
-  const form = document.getElementById('login-form');
-  const toggleBtn = document.getElementById('login-toggle-pw');
-  const pwInput = document.getElementById('login-password');
-  const errorEl = document.getElementById('login-error');
-
-  // Toggle password visibility
-  if (toggleBtn && pwInput) {
-    toggleBtn.addEventListener('click', () => {
-      pwInput.type = pwInput.type === 'password' ? 'text' : 'password';
-    });
-  }
-
-  if (form) {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = document.getElementById('login-email').value.trim();
-      const password = pwInput.value;
-      const btn = document.getElementById('login-btn');
-
-      btn.disabled = true;
-      btn.textContent = 'SIGNING IN...';
-      errorEl.classList.add('hidden');
-
-      try {
-        const { api } = await import('./utils/api.js');
-        const { setTokens, setCurrentUser } = await import('./utils/auth.js');
-
-        const res = await api.post('/api/auth/login', { email, password });
-
-        if (res.success) {
-          setTokens(res.data.token, res.data.refreshToken);
-          setCurrentUser(res.data.user.id, res.data.user.username);
-          navigate('/home');
-        } else {
-          errorEl.textContent = res.error?.message || 'Login failed. Please try again.';
-          errorEl.classList.remove('hidden');
-        }
-      } catch (err) {
-        errorEl.textContent = 'Network error. Please check your connection.';
-        errorEl.classList.remove('hidden');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'SIGN IN';
-      }
-    });
-  }
-}
 
 // ============================================
 // REGISTER PAGE
 // ============================================
 
-function renderRegister() {
-  return `
-    <div class="app">
-      <div class="page page-light page-enter">
-        <div class="auth-container">
-          <div class="auth-logo"><span class="logo-accent">BIKERS</span> HUB</div>
-          <h1 class="auth-title">Create Account</h1>
-          <p class="auth-subtitle">Join the riding community</p>
 
-          <div id="register-error" class="auth-error hidden"></div>
-
-          <form id="register-form">
-            <div class="auth-input-group">
-              <label class="auth-input-label">Username</label>
-              <div class="auth-input-wrap">
-                <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
-                  <circle cx="12" cy="7" r="4"/>
-                </svg>
-                <input type="text" id="register-username" placeholder="Choose a username" autocomplete="username" required />
-              </div>
-            </div>
-
-            <div class="auth-input-group">
-              <label class="auth-input-label">Email</label>
-              <div class="auth-input-wrap">
-                <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="2" y="4" width="20" height="16" rx="2"/>
-                  <path d="M22 4L12 13 2 4"/>
-                </svg>
-                <input type="email" id="register-email" placeholder="your@email.com" autocomplete="email" required />
-              </div>
-            </div>
-
-            <div class="auth-input-group">
-              <label class="auth-input-label">Password</label>
-              <div class="auth-input-wrap">
-                <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2"/>
-                  <path d="M7 11V7a5 5 0 0110 0v4"/>
-                </svg>
-                <input type="password" id="register-password" placeholder="Min 6 characters" autocomplete="new-password" required minlength="6" />
-                <button type="button" class="auth-input-toggle" id="register-toggle-pw">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div class="auth-input-group">
-              <label class="auth-input-label">Confirm Password</label>
-              <div class="auth-input-wrap">
-                <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2"/>
-                  <path d="M7 11V7a5 5 0 0110 0v4"/>
-                </svg>
-                <input type="password" id="register-confirm" placeholder="Repeat your password" autocomplete="new-password" required />
-              </div>
-            </div>
-
-            <div style="margin-bottom: 28px;"></div>
-
-            <button type="submit" class="auth-btn" id="register-btn">CREATE ACCOUNT</button>
-          </form>
-
-          <div class="auth-divider">or continue with</div>
-
-          <button class="auth-social-btn" id="google-register-btn">
-            <svg width="20" height="20" viewBox="0 0 24 24">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 001 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-            </svg>
-            Continue with Google
-          </button>
-
-          <p class="auth-footer">
-            Already have an account? <a href="#/login">Sign In</a>
-          </p>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function mountRegister() {
-  const form = document.getElementById('register-form');
-  const toggleBtn = document.getElementById('register-toggle-pw');
-  const pwInput = document.getElementById('register-password');
-  const errorEl = document.getElementById('register-error');
-
-  if (toggleBtn && pwInput) {
-    toggleBtn.addEventListener('click', () => {
-      pwInput.type = pwInput.type === 'password' ? 'text' : 'password';
-    });
-  }
-
-  if (form) {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const username = document.getElementById('register-username').value.trim();
-      const email = document.getElementById('register-email').value.trim();
-      const password = pwInput.value;
-      const confirm = document.getElementById('register-confirm').value;
-      const btn = document.getElementById('register-btn');
-
-      errorEl.classList.add('hidden');
-
-      if (password !== confirm) {
-        errorEl.textContent = 'Passwords do not match.';
-        errorEl.classList.remove('hidden');
-        return;
-      }
-
-      btn.disabled = true;
-      btn.textContent = 'CREATING ACCOUNT...';
-
-      try {
-        const { api } = await import('./utils/api.js');
-
-        const res = await api.post('/api/auth/register', { username, email, password });
-
-        if (res.success) {
-          alert('Account created! Please sign in.');
-          navigate('/login');
-        } else {
-          errorEl.textContent = res.error?.message || 'Registration failed. Please try again.';
-          errorEl.classList.remove('hidden');
-        }
-      } catch (err) {
-        errorEl.textContent = 'Network error. Please check your connection.';
-        errorEl.classList.remove('hidden');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'CREATE ACCOUNT';
-      }
-    });
-  }
-}
 
 // ============================================
-// PAGE MODULES (Home, Clubs, Search, Maps, Profile)
+// PAGE MODULES (Splash, Home, Clubs, Search, Maps, Profile)
 // ============================================
 
+import { render as renderLogin, mount as mountLogin } from './pages/login.js';
+import { render as renderRegister, mount as mountRegister } from './pages/register.js';
+import { render as renderSplash, mount as mountSplash } from './pages/splash.js';
 import { render as renderHome, mount as mountHome } from './pages/home.js';
 import { render as renderClubs, mount as mountClubs } from './pages/clubs.js';
 import { render as renderSearch, mount as mountSearch } from './pages/search.js';
@@ -366,17 +182,15 @@ import { render as renderCreateClub, mount as mountCreateClub } from './pages/cr
 import { render as renderEditProfile, mount as mountEditProfile } from './pages/edit-profile.js';
 import { render as renderUserProfile, mount as mountUserProfile } from './pages/user-profile.js';
 import { render as renderPostDetail, mount as mountPostDetail } from './pages/post-detail.js';
+import { render as renderAddBike, mount as mountAddBike, cleanup as cleanupAddBike } from './pages/add-bike.js';
+import { render as renderEditBike, mount as mountEditBike, cleanup as cleanupEditBike } from './pages/edit-bike.js';
+import { render as renderBikeDetail, mount as mountBikeDetail, cleanup as cleanupBikeDetail } from './pages/bike-detail.js';
 
 // ============================================
 // ROUTE REGISTRATION
 // ============================================
 
-function mountSplash() {
-  const guestBtn = document.getElementById('guest-btn');
-  if (guestBtn) {
-    guestBtn.addEventListener('click', () => loginAsGuest());
-  }
-}
+
 
 registerRoute('/', () => {
   if (isLoggedIn()) {
@@ -419,7 +233,7 @@ registerRoute('/search', () => {
 
 registerRoute('/maps', () => {
   if (!requireAuth()) return;
-  showPage(renderMaps, mountMaps);
+  showPage(renderMaps, mountMaps, {}, cleanupMaps);
 });
 
 registerRoute('/profile', () => {
@@ -434,7 +248,7 @@ registerRoute('/create-post', () => {
 
 registerRoute('/create-ride', () => {
   if (!requireAuth()) return;
-  showPage(renderCreateRide, mountCreateRide);
+  showPage(renderCreateRide, mountCreateRide, {}, cleanupCreateRide);
 });
 
 registerRoute('/conversations', () => {
@@ -444,10 +258,11 @@ registerRoute('/conversations', () => {
 
 registerRoute('/chat/:id', (context) => {
   if (!requireAuth()) return;
-  cleanupChat(); // Clear any previous polling
   showPage(
     () => renderChat(context),
-    () => mountChat(context)
+    () => mountChat(context),
+    {},
+    cleanupChat
   );
 });
 
@@ -458,10 +273,11 @@ registerRoute('/notifications', () => {
 
 registerRoute('/rides/:id', (context) => {
   if (!requireAuth()) return;
-  if (typeof cleanupRideDetail === 'function') cleanupRideDetail();
   showPage(
     () => renderRideDetail(context),
-    () => mountRideDetail(context)
+    () => mountRideDetail(context),
+    {},
+    cleanupRideDetail
   );
 });
 
@@ -481,6 +297,30 @@ registerRoute('/create-club', () => {
 registerRoute('/edit-profile', () => {
   if (!requireAuth()) return;
   showPage(renderEditProfile, mountEditProfile);
+});
+
+registerRoute('/add-bike', () => {
+  if (!requireAuth()) return;
+  showPage(renderAddBike, mountAddBike, {}, cleanupAddBike);
+});
+
+registerRoute('/edit-bike/:id', (context) => {
+  if (!requireAuth()) return;
+  showPage(
+    () => renderEditBike(context),
+    () => mountEditBike(context),
+    {},
+    cleanupEditBike
+  );
+});
+
+registerRoute('/garage/:userId/:bikeId', (context) => {
+  showPage(
+    () => renderBikeDetail(context),
+    () => mountBikeDetail(context),
+    {},
+    cleanupBikeDetail
+  );
 });
 
 registerRoute('/user/:id', (context) => {
