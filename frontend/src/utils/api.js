@@ -251,11 +251,12 @@ export const api = {
    * Upload files using FormData (multipart/form-data)
    * @param {string} url
    * @param {FormData} formData
+   * @param {string} [method] - HTTP method, defaults to 'POST'
    * @returns {Promise<any>}
    */
-  async upload(url, formData) {
+  async upload(url, formData, method = 'POST') {
     return request(url, {
-      method: 'POST',
+      method,
       headers: buildHeaders(true),
       body: formData,
     });
