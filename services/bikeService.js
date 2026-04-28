@@ -93,6 +93,36 @@ exports.updateBike = async (userId, bikeId, fields, photoFile) => {
   return bike.toObject();
 };
 
+exports.setPrimary = async (userId, bikeId) => {
+  const bike = await Bike.findById(bikeId);
+  if (!bike) throw new AppError("Bike not found", 404, "NOT_FOUND");
+  if (String(bike.owner) !== String(userId)) {
+    throw new AppError("Bike not found", 404, "NOT_FOUND");
+  }
+
+  // Unset any other primary in this user's garage
+  await Bike.updateMany(
+    { owner: userId, _id: { $ne: bikeId }, isPrimary: true },
+    { $set: { isPrimary: false } }
+  );
+
+  bike.isPrimary = true;
+  await bike.save();
+  return bike.toObject();
+};
+
+exports.deleteBike = async (userId, bikeId) => {
+  const bike = await Bike.findById(bikeId);
+  if (!bike) throw new AppError("Bike not found", 404, "NOT_FOUND");
+  if (String(bike.owner) !== String(userId)) {
+    throw new AppError("Bike not found", 404, "NOT_FOUND");
+  }
+
+  // Best-effort Cloudinary cleanup; no auto-promotion of another bike
+  await destroyPhoto(bike.photo?.public_id);
+  await Bike.findByIdAndDelete(bikeId);
+};
+
 exports.MAX_BIKES_PER_USER = MAX_BIKES_PER_USER;
 exports._uploadBikePhoto = uploadBikePhoto;
 exports._destroyPhoto = destroyPhoto;
