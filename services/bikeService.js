@@ -50,6 +50,20 @@ exports.createBike = async (userId, fields, photoFile) => {
   }
 };
 
+exports.listByUser = async (userId) => {
+  return Bike.find({ owner: userId })
+    .sort({ isPrimary: -1, createdAt: -1 })
+    .lean();
+};
+
+exports.getById = async (bikeId) => {
+  const bike = await Bike.findById(bikeId)
+    .populate("owner", "username profilePic")
+    .lean();
+  if (!bike) throw new AppError("Bike not found", 404, "NOT_FOUND");
+  return bike;
+};
+
 exports.MAX_BIKES_PER_USER = MAX_BIKES_PER_USER;
 exports._uploadBikePhoto = uploadBikePhoto;
 exports._destroyPhoto = destroyPhoto;
