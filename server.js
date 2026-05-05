@@ -72,6 +72,7 @@ console.log("Routes initialized");
 
 /* ROUTES */
 app.use("/api/auth", authLimiter, require("./routes/authRoutes"));
+app.use("/api/bikes", require("./routes/bikeRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/posts", require("./routes/postRoutes"));
 app.use("/api/comments", require("./routes/commentRoutes"));
@@ -118,6 +119,17 @@ app.use((err, req, res, next) => {
 app.use((err, req, res, next) => {
   if (res.headersSent) {
     return next(err);
+  }
+
+  // Operational AppError — return structured JSON to the client
+  if (err && err.isOperational) {
+    return res.status(err.statusCode || 500).json({
+      success: false,
+      error: {
+        code: err.code || "ERROR",
+        message: err.message
+      }
+    });
   }
 
   console.error(err.stack);
