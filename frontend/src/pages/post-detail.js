@@ -6,6 +6,7 @@
 import { api } from '../utils/api.js';
 import { navigate } from '../utils/router.js';
 import { getCurrentUser } from '../utils/auth.js';
+import { renderPollBlock } from '../components/post-card.js';
 
 const BACK_ICON = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f9fafb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>`;
 const EDIT_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f9fafb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
@@ -352,6 +353,11 @@ function renderPost() {
       </div>`
     : `<div class="pd-content">${escapeHtml(postData.content || '')}</div>`;
 
+  // Poll block (if poll exists on this post)
+  const pollHtml = (postData.poll && Array.isArray(postData.poll.options))
+    ? renderPollBlock(postData)
+    : '';
+
   scroll.innerHTML = `
     <div class="pd-author-row">
       ${avatarHtml}
@@ -359,6 +365,7 @@ function renderPost() {
       <span class="pd-time">${time}</span>
     </div>
     ${mediaHtml}
+    ${pollHtml}
     <div class="pd-actions">
       <button class="pd-action-btn ${isLiked ? 'liked' : ''}" id="pd-like-btn">
         ${isLiked ? HEART_FILLED : HEART_OUTLINE}
@@ -376,6 +383,36 @@ function renderPost() {
       <div class="pd-comments-empty">Loading comments...</div>
     </div>
   `;
+
+  // (Re)wire poll option clicks when block is rendered/replaced
+  function wirePollOptions() {
+    scroll.querySelectorAll('.poll-option').forEach((b) => {
+      if (b.dataset.bound === '1') return;
+      b.dataset.bound = '1';
+      b.addEventListener('click', async () => {
+        if (b.disabled) return;
+        const optionId = b.dataset.optionId;
+        b.disabled = true;
+        try {
+          const res = await api.post(`/api/posts/${postData._id}/poll/vote`, { optionId });
+          if (res?.success && res.data) {
+            postData.poll = res.data;
+            const block = scroll.querySelector('.poll-block');
+            if (block) {
+              const tmp = document.createElement('div');
+              tmp.innerHTML = renderPollBlock(postData);
+              const fresh = tmp.querySelector('.poll-block');
+              if (fresh) {
+                block.replaceWith(fresh);
+                wirePollOptions();
+              }
+            }
+          }
+        } finally { b.disabled = false; }
+      });
+    });
+  }
+  wirePollOptions();
 
   // Owner actions in header
   const ownerActions = document.getElementById('pd-owner-actions');

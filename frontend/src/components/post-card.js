@@ -45,6 +45,73 @@ export function formatCount(n) {
   return (n / 1000000).toFixed(1) + ' M';
 }
 
+function escapeAttr(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
+function pollClosesText(poll) {
+  if (poll.closed) return 'Poll closed';
+  if (!poll.closesAt) return null;
+  const ms = new Date(poll.closesAt).getTime() - Date.now();
+  if (ms <= 0) return 'Poll closed';
+  const min = Math.floor(ms / 60000);
+  const hr = Math.floor(min / 60);
+  const day = Math.floor(hr / 24);
+  if (day >= 1) return `Closes in ${day} day${day > 1 ? 's' : ''}`;
+  if (hr >= 1) return `Closes in ${hr} hour${hr > 1 ? 's' : ''}`;
+  return `Closes in ${min} min`;
+}
+
+/**
+ * Render a poll block. Used inside post cards and post-detail.
+ * Caller is responsible for wiring click handlers on `.poll-option[data-option-id]`.
+ */
+export function renderPollBlock(post) {
+  if (!post || !post.poll || !Array.isArray(post.poll.options) || post.poll.options.length === 0) return '';
+  const poll = post.poll;
+  const currentUser = getCurrentUser();
+  const myId = currentUser?.id ? String(currentUser.id) : null;
+
+  const isExpired = poll.closed || (poll.closesAt && new Date(poll.closesAt).getTime() <= Date.now());
+
+  const totalVotes = poll.options.reduce((sum, o) => sum + (Array.isArray(o.votes) ? o.votes.length : 0), 0);
+
+  const optionsHtml = poll.options.map((opt) => {
+    const count = Array.isArray(opt.votes) ? opt.votes.length : 0;
+    const pct = totalVotes ? Math.round((count / totalVotes) * 100) : 0;
+    const myVote = myId && Array.isArray(opt.votes) && opt.votes.some((v) => String(v?._id || v) === myId);
+    const optId = String(opt._id || opt.id || '');
+    return `
+      <button type="button"
+        class="poll-option ${myVote ? 'voted' : ''} ${isExpired ? 'closed' : ''}"
+        data-post-id="${escapeAttr(post._id)}"
+        data-option-id="${escapeAttr(optId)}"
+        ${isExpired ? 'disabled' : ''}>
+        <div class="poll-option-fill" style="width:${pct}%"></div>
+        <div class="poll-option-row">
+          <span class="poll-option-label">${myVote ? '★ ' : ''}${escapeAttr(opt.label)}</span>
+          <span class="poll-option-pct">${pct}%</span>
+        </div>
+      </button>
+    `;
+  }).join('');
+
+  const meta = [
+    `${totalVotes} vote${totalVotes === 1 ? '' : 's'}`,
+    poll.multiSelect ? 'multi-choice' : null,
+    pollClosesText(poll)
+  ].filter(Boolean).join(' · ');
+
+  return `
+    <div class="poll-block">
+      ${optionsHtml}
+      <div class="poll-meta">${meta}</div>
+    </div>
+  `;
+}
+
 /**
  * Render a post card HTML string
  * @param {object} post - Post object from API
@@ -67,7 +134,7 @@ export function renderPostCard(post) {
   const mediaItem = Array.isArray(post.media) && post.media.length > 0 ? post.media[0] : null;
   const imageHtml = mediaItem
     ? `<img class="post-card-image" src="${mediaItem.url}" alt="Post image" loading="lazy">`
-    : `<div class="post-card-image"></div>`;
+    : (post.poll ? '' : `<div class="post-card-image"></div>`);
 
   const content = post.content || '';
   const truncated = content.length > 150 ? content.slice(0, 150) + '...' : content;
@@ -76,6 +143,8 @@ export function renderPostCard(post) {
   const avatarHtml = avatarUrl
     ? `<img class="post-card-avatar" src="${avatarUrl}" alt="${username}">`
     : `<div class="post-card-avatar"></div>`;
+
+  const pollHtml = renderPollBlock(post);
 
   return `
     <div class="post-card-dark" data-post-id="${post._id}">
@@ -87,6 +156,7 @@ export function renderPostCard(post) {
         <span class="post-card-time">&middot; ${time}</span>
       </div>
       ${imageHtml}
+      ${pollHtml}
       <div class="post-card-actions">
         <button class="post-action-btn like-btn ${isLiked ? 'liked' : ''}" data-post-id="${post._id}">
           ${heartIcon}
@@ -99,9 +169,7 @@ export function renderPostCard(post) {
         </button>
       </div>
       <div class="post-card-likes">${formatCount(likesCount)} likes</div>
-      <div class="post-card-caption">
-        <strong>${username}</strong> ${truncated}${readMore}
-      </div>
+      ${content ? `<div class="post-card-caption"><strong>${username}</strong> ${truncated}${readMore}</div>` : ''}
       ${commentsCount > 0 ? `<a href="#/posts/${post._id}" class="post-card-comments-link" style="text-decoration: none; color: #6b7280; cursor: pointer;">View all ${formatCount(commentsCount)} comments</a>` : ''}
     </div>
   `;

@@ -7,7 +7,7 @@ import { api } from '../utils/api.js';
 import { navigate } from '../utils/router.js';
 import { getCurrentUser } from '../utils/auth.js';
 import { renderTabBar } from '../components/tabbar.js';
-import { renderPostCard, formatCount } from '../components/post-card.js';
+import { renderPostCard, formatCount, renderPollBlock } from '../components/post-card.js';
 import { openComments } from '../components/comments.js';
 
 const CREATE_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
@@ -250,6 +250,52 @@ function attachPostHandlers() {
       if (postId && !postId.startsWith('placeholder')) {
         openComments(postId);
       }
+    });
+  });
+
+  // Poll vote buttons
+  document.querySelectorAll('.poll-option').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (btn.disabled) return;
+      const postId = btn.dataset.postId;
+      const optionId = btn.dataset.optionId;
+      if (!postId || !optionId) return;
+      btn.disabled = true;
+      try {
+        const res = await api.post(`/api/posts/${postId}/poll/vote`, { optionId });
+        if (res?.success && res.data) {
+          updatePollInDom(postId, res.data);
+        }
+      } catch {
+        // silently fail; user can retry
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+/* Patch a post's poll block in the DOM after a vote response. */
+function updatePollInDom(postId, poll) {
+  const card = document.querySelector(`.post-card-dark[data-post-id="${postId}"]`);
+  if (!card) return;
+  const block = card.querySelector('.poll-block');
+  if (!block) return;
+  const fakePost = { _id: postId, poll };
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderPollBlock(fakePost);
+  const fresh = tmp.querySelector('.poll-block');
+  if (!fresh) return;
+  block.replaceWith(fresh);
+  fresh.querySelectorAll('.poll-option').forEach((b) => {
+    b.addEventListener('click', async () => {
+      if (b.disabled) return;
+      const oid = b.dataset.optionId;
+      b.disabled = true;
+      try {
+        const res = await api.post(`/api/posts/${postId}/poll/vote`, { optionId: oid });
+        if (res?.success && res.data) updatePollInDom(postId, res.data);
+      } finally { b.disabled = false; }
     });
   });
 }

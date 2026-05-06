@@ -82,6 +82,102 @@ export function render() {
       .create-post-submit:hover:not(:disabled) {
         background: #dc2626;
       }
+
+      /* Poll composer */
+      .cp-poll-toggle {
+        background: none;
+        border: 1px solid #374151;
+        border-radius: 12px;
+        color: #9ca3af;
+        padding: 10px 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-family: 'Nunito', sans-serif;
+        margin-top: 8px;
+        width: 100%;
+        justify-content: center;
+      }
+      .cp-poll-toggle.active {
+        border-color: #E53935;
+        color: #E53935;
+      }
+      .cp-poll-card {
+        margin-top: 12px;
+        border: 1px solid #374151;
+        border-radius: 14px;
+        padding: 14px;
+        background: #1E1E1E;
+        display: none;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .cp-poll-card.show { display: flex; }
+      .cp-poll-row { display: flex; align-items: center; gap: 8px; }
+      .cp-poll-input {
+        flex: 1;
+        background: #0C0C0C;
+        border: 1px solid #374151;
+        border-radius: 10px;
+        color: #F3F3F3;
+        padding: 10px 12px;
+        font-family: 'Poppins', sans-serif;
+        font-size: 14px;
+        outline: none;
+      }
+      .cp-poll-input:focus { border-color: #E53935; }
+      .cp-poll-remove {
+        background: transparent;
+        border: 1px solid #374151;
+        border-radius: 999px;
+        width: 30px;
+        height: 30px;
+        color: #9ca3af;
+        cursor: pointer;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        line-height: 1;
+      }
+      .cp-poll-add {
+        background: transparent;
+        border: 1px dashed #374151;
+        border-radius: 10px;
+        color: #9ca3af;
+        padding: 10px;
+        cursor: pointer;
+        font-family: 'Poppins', sans-serif;
+        font-size: 13px;
+      }
+      .cp-poll-add:disabled { opacity: 0.4; cursor: not-allowed; }
+      .cp-poll-controls {
+        display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px;
+        align-items: center;
+      }
+      .cp-poll-control-label {
+        font-size: 11.5px;
+        color: rgba(243,243,243,0.55);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .cp-poll-select {
+        background: #0C0C0C;
+        border: 1px solid #374151;
+        border-radius: 10px;
+        color: #F3F3F3;
+        padding: 8px 10px;
+        font-family: 'Poppins', sans-serif;
+        font-size: 13px;
+        outline: none;
+      }
+      .cp-poll-multi {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 13px; color: #F3F3F3; cursor: pointer; user-select: none;
+      }
     </style>
     <div class="page-dark">
       <div class="app-header">
@@ -108,6 +204,28 @@ export function render() {
           Add Photos (max 5)
         </button>
 
+        <button class="cp-poll-toggle" id="cp-poll-toggle" type="button">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>
+          </svg>
+          <span id="cp-poll-toggle-label">Add a poll</span>
+        </button>
+
+        <div class="cp-poll-card" id="cp-poll-card">
+          <div id="cp-poll-options"></div>
+          <button class="cp-poll-add" id="cp-poll-add" type="button">+ Add option</button>
+          <div class="cp-poll-controls">
+            <label class="cp-poll-multi"><input type="checkbox" id="cp-poll-multi" /> Allow multiple choices</label>
+            <span class="cp-poll-control-label">Closes</span>
+            <select class="cp-poll-select" id="cp-poll-closes">
+              <option value="">Never</option>
+              <option value="1">In 1 day</option>
+              <option value="3">In 3 days</option>
+              <option value="7">In 1 week</option>
+            </select>
+          </div>
+        </div>
+
         <button class="create-post-submit" id="create-post-btn">POST</button>
       </div>
 
@@ -123,6 +241,61 @@ export function mount() {
   const previewRow = document.getElementById('create-post-previews');
   const contentEl = document.getElementById('create-post-content');
   const submitBtn = document.getElementById('create-post-btn');
+
+  // Poll composer state
+  const pollToggle = document.getElementById('cp-poll-toggle');
+  const pollLabel = document.getElementById('cp-poll-toggle-label');
+  const pollCard = document.getElementById('cp-poll-card');
+  const pollOptionsEl = document.getElementById('cp-poll-options');
+  const pollAddBtn = document.getElementById('cp-poll-add');
+  const pollMultiEl = document.getElementById('cp-poll-multi');
+  const pollClosesEl = document.getElementById('cp-poll-closes');
+  let pollEnabled = false;
+  let pollOptionLabels = ['', ''];
+
+  function renderPollOptions() {
+    if (!pollOptionsEl) return;
+    pollOptionsEl.innerHTML = pollOptionLabels.map((value, idx) => `
+      <div class="cp-poll-row" data-idx="${idx}">
+        <input type="text" class="cp-poll-input" placeholder="Option ${idx + 1}" maxlength="60" value="${value.replace(/"/g, '&quot;')}" />
+        ${pollOptionLabels.length > 2 ? `<button class="cp-poll-remove" type="button" aria-label="Remove">×</button>` : ''}
+      </div>
+    `).join('');
+    pollOptionsEl.querySelectorAll('.cp-poll-row').forEach((row) => {
+      const idx = Number(row.dataset.idx);
+      const inp = row.querySelector('.cp-poll-input');
+      inp?.addEventListener('input', () => { pollOptionLabels[idx] = inp.value; });
+      const rm = row.querySelector('.cp-poll-remove');
+      rm?.addEventListener('click', () => {
+        pollOptionLabels.splice(idx, 1);
+        renderPollOptions();
+        if (pollAddBtn) pollAddBtn.disabled = pollOptionLabels.length >= 4;
+      });
+    });
+  }
+
+  if (pollToggle) {
+    pollToggle.addEventListener('click', () => {
+      pollEnabled = !pollEnabled;
+      pollToggle.classList.toggle('active', pollEnabled);
+      if (pollLabel) pollLabel.textContent = pollEnabled ? 'Remove poll' : 'Add a poll';
+      if (pollCard) pollCard.classList.toggle('show', pollEnabled);
+      if (pollEnabled) {
+        pollOptionLabels = ['', ''];
+        renderPollOptions();
+        if (pollAddBtn) pollAddBtn.disabled = false;
+      }
+    });
+  }
+
+  if (pollAddBtn) {
+    pollAddBtn.addEventListener('click', () => {
+      if (pollOptionLabels.length >= 4) return;
+      pollOptionLabels.push('');
+      renderPollOptions();
+      pollAddBtn.disabled = pollOptionLabels.length >= 4;
+    });
+  }
 
   let selectedFiles = [];
 
@@ -163,9 +336,34 @@ export function mount() {
     submitBtn.addEventListener('click', async () => {
       const content = contentEl ? contentEl.value.trim() : '';
 
-      if (!content && selectedFiles.length === 0) {
-        alert('Please write something or add a photo.');
+      if (!content && selectedFiles.length === 0 && !pollEnabled) {
+        alert('Please write something, add a photo, or create a poll.');
         return;
+      }
+
+      // Validate poll if enabled
+      let pollPayload = null;
+      if (pollEnabled) {
+        const cleaned = pollOptionLabels.map((s) => s.trim()).filter(Boolean);
+        if (cleaned.length < 2) {
+          alert('A poll needs at least 2 non-empty options.');
+          return;
+        }
+        const lower = cleaned.map((s) => s.toLowerCase());
+        if (new Set(lower).size !== lower.length) {
+          alert('Poll options must be unique.');
+          return;
+        }
+        const days = parseInt(pollClosesEl?.value, 10);
+        let closesAt = null;
+        if (Number.isFinite(days) && days > 0) {
+          closesAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+        }
+        pollPayload = {
+          options: cleaned.map((label) => ({ label })),
+          multiSelect: !!pollMultiEl?.checked,
+          closesAt
+        };
       }
 
       submitBtn.disabled = true;
@@ -179,6 +377,9 @@ export function mount() {
         selectedFiles.forEach((file) => {
           formData.append('media', file);
         });
+        if (pollPayload) {
+          formData.append('poll', JSON.stringify(pollPayload));
+        }
 
         const res = await api.upload('/api/posts', formData);
 

@@ -38,6 +38,24 @@ router.put(
   postController.likePost
 );
 
+/* VOTE ON POLL */
+router.post(
+  "/:id/poll/vote",
+  protect,
+  [param("id").isMongoId().withMessage("Valid post id is required")],
+  validateRequest,
+  postController.voteOnPoll
+);
+
+/* CLOSE POLL (author only) */
+router.put(
+  "/:id/poll/close",
+  protect,
+  [param("id").isMongoId().withMessage("Valid post id is required")],
+  validateRequest,
+  postController.closePoll
+);
+
 router.delete(
   "/:id",
   protect,

@@ -44,6 +44,22 @@ const postSchema = new mongoose.Schema(
     commentsCount: {
       type: Number,
       default: 0
+    },
+
+    poll: {
+      type: {
+        options: [
+          {
+            _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+            label: { type: String, required: true, maxlength: 60 },
+            votes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }]
+          }
+        ],
+        multiSelect: { type: Boolean, default: false },
+        closesAt: { type: Date, default: null },
+        closed: { type: Boolean, default: false }
+      },
+      default: undefined
     }
   },
   { timestamps: true }

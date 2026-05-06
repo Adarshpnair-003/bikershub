@@ -67,12 +67,50 @@ exports.createPost = async (req, res) => {
       await cleanupLocalFiles(files);
     }
 
+    // 📊 OPTIONAL POLL — multipart sends JSON-stringified
+    let poll;
+    if (body.poll) {
+      let raw;
+      try {
+        raw = typeof body.poll === "string" ? JSON.parse(body.poll) : body.poll;
+      } catch {
+        return res.status(400).json({ success: false, error: { code: "INVALID_POLL", message: "Poll payload is not valid JSON" } });
+      }
+      const options = Array.isArray(raw.options) ? raw.options : [];
+      const labels = options.map((o) => (o && typeof o.label === "string" ? o.label.trim() : "")).filter(Boolean);
+      if (labels.length < 2 || labels.length > 4) {
+        return res.status(400).json({ success: false, error: { code: "INVALID_POLL", message: "Poll must have 2 to 4 options" } });
+      }
+      if (labels.some((l) => l.length > 60)) {
+        return res.status(400).json({ success: false, error: { code: "INVALID_POLL", message: "Each option must be 60 characters or fewer" } });
+      }
+      const lower = labels.map((l) => l.toLowerCase());
+      if (new Set(lower).size !== lower.length) {
+        return res.status(400).json({ success: false, error: { code: "INVALID_POLL", message: "Poll options must be unique" } });
+      }
+      let closesAt = null;
+      if (raw.closesAt) {
+        const parsed = new Date(raw.closesAt);
+        if (isNaN(parsed.getTime()) || parsed.getTime() <= Date.now()) {
+          return res.status(400).json({ success: false, error: { code: "INVALID_POLL", message: "Poll close time must be in the future" } });
+        }
+        closesAt = parsed;
+      }
+      poll = {
+        options: labels.map((label) => ({ label, votes: [] })),
+        multiSelect: Boolean(raw.multiSelect),
+        closesAt,
+        closed: false
+      };
+    }
+
     // ✅ CREATE POST
     const post = await Post.create({
       author: req.user.id,
       content,
       club: body.club || null,
-      media // 👈 NEW FIELD
+      media, // 👈 NEW FIELD
+      ...(poll ? { poll } : {})
     });
 
     const populatedPost = await post.populate("author", "username email");
@@ -319,5 +357,87 @@ exports.updatePost = async (req, res) => {
     console.error("UPDATE POST ERROR:", error);
     await cleanupLocalFiles(req.files);
     res.status(500).json({ error: error.message });
+  }
+};
+
+/* VOTE ON A POLL OPTION (toggle) */
+exports.voteOnPoll = async (req, res) => {
+  try {
+    const { optionId } = req.body || {};
+    if (!optionId) {
+      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "optionId is required" } });
+    }
+
+    const post = await Post.findById(req.params.id);
+    if (!post || !post.poll) {
+      return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Poll not found" } });
+    }
+
+    const poll = post.poll;
+    if (poll.closed || (poll.closesAt && new Date(poll.closesAt).getTime() <= Date.now())) {
+      // Auto-mark closed if the deadline passed
+      if (!poll.closed) poll.closed = true;
+      return res.status(400).json({ success: false, error: { code: "POLL_CLOSED", message: "This poll has closed" } });
+    }
+
+    const target = poll.options.id(optionId);
+    if (!target) {
+      return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Option not found" } });
+    }
+
+    const userId = String(req.user.id);
+    const alreadyVoted = target.votes.some((v) => String(v) === userId);
+
+    if (poll.multiSelect) {
+      target.votes = alreadyVoted
+        ? target.votes.filter((v) => String(v) !== userId)
+        : [...target.votes, req.user.id];
+    } else {
+      // Single-choice: clear vote from all options first, then either toggle off or set this one
+      poll.options.forEach((opt) => {
+        opt.votes = opt.votes.filter((v) => String(v) !== userId);
+      });
+      if (!alreadyVoted) target.votes.push(req.user.id);
+    }
+
+    post.markModified("poll");
+    await post.save();
+
+    // Realtime broadcast (room-based — keeps existing pattern lightweight)
+    try {
+      const io = getIO();
+      io.emit("pollUpdated", { postId: post._id, poll: post.poll });
+    } catch { /* socket optional */ }
+
+    res.json({ success: true, data: post.poll, message: alreadyVoted && !poll.multiSelect ? "Vote cleared" : "Vote recorded" });
+  } catch (error) {
+    console.error("POLL VOTE ERROR:", error);
+    res.status(500).json({ success: false, error: { message: error.message } });
+  }
+};
+
+/* CLOSE A POLL (author only) */
+exports.closePoll = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post || !post.poll) {
+      return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Poll not found" } });
+    }
+    if (String(post.author) !== String(req.user.id)) {
+      return res.status(403).json({ success: false, error: { code: "FORBIDDEN", message: "Only the author can close this poll" } });
+    }
+    post.poll.closed = true;
+    post.markModified("poll");
+    await post.save();
+
+    try {
+      const io = getIO();
+      io.emit("pollUpdated", { postId: post._id, poll: post.poll });
+    } catch { /* socket optional */ }
+
+    res.json({ success: true, data: post.poll, message: "Poll closed" });
+  } catch (error) {
+    console.error("POLL CLOSE ERROR:", error);
+    res.status(500).json({ success: false, error: { message: error.message } });
   }
 };
