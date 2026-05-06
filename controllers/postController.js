@@ -32,8 +32,9 @@ exports.createPost = async (req, res) => {
     const content = (body.content || body.text || "").trim();
     let media = [];
 
-    if (!content && (!files || files.length === 0)) {
-      return res.status(400).json({ msg: "Post content or media is required" });
+    const hasPoll = !!body.poll;
+    if (!content && (!files || files.length === 0) && !hasPoll) {
+      return res.status(400).json({ msg: "Post content, media, or poll is required" });
     }
 
     // ✅ HANDLE MULTIPLE MEDIA UPLOAD
