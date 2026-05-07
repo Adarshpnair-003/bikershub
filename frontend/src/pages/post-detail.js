@@ -7,6 +7,8 @@ import { api } from '../utils/api.js';
 import { navigate } from '../utils/router.js';
 import { getCurrentUser } from '../utils/auth.js';
 import { renderPollBlock } from '../components/post-card.js';
+import { linkifyMentions } from '../utils/mentions.js';
+import { attachMentionAutocomplete } from '../components/mention-autocomplete.js';
 
 const BACK_ICON = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f9fafb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>`;
 const EDIT_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f9fafb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
@@ -351,7 +353,7 @@ function renderPost() {
           <button class="pd-edit-btn pd-edit-save" id="pd-edit-save-btn">Save</button>
         </div>
       </div>`
-    : `<div class="pd-content">${escapeHtml(postData.content || '')}</div>`;
+    : `<div class="pd-content">${linkifyMentions(postData.content || '', postData.mentions)}</div>`;
 
   // Poll block (if poll exists on this post)
   const pollHtml = (postData.poll && Array.isArray(postData.poll.options))
@@ -646,7 +648,7 @@ function renderCommentItem(comment, currentUser, isReply) {
       ${avatarHtml}
       <div class="pd-comment-body">
         <span class="pd-comment-author" data-user-id="${author._id || ''}">${username}</span>
-        <span class="pd-comment-text">${escapeHtml(comment.content || '')}</span>
+        <span class="pd-comment-text">${linkifyMentions(comment.content || '', comment.mentions)}</span>
         <div class="pd-comment-meta">
           <span>${time}</span>
           <button class="pd-comment-action comment-like-btn ${isLiked ? 'liked' : ''}" data-comment-id="${comment._id}">
@@ -737,6 +739,8 @@ function setupCommentInput() {
   const sendBtn = document.getElementById('pd-send-btn');
   const input = document.getElementById('pd-comment-input');
   const cancelReply = document.getElementById('pd-reply-cancel');
+
+  if (input) attachMentionAutocomplete(input);
 
   sendBtn?.addEventListener('click', submitComment);
   input?.addEventListener('keydown', (e) => {

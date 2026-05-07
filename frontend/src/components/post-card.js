@@ -4,6 +4,7 @@
  */
 
 import { getCurrentUser } from '../utils/auth.js';
+import { linkifyMentions } from '../utils/mentions.js';
 
 const HEART_OUTLINE = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
 const HEART_FILLED = `<svg width="22" height="22" viewBox="0 0 24 24" fill="#E53935" stroke="#E53935" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
@@ -137,7 +138,9 @@ export function renderPostCard(post) {
     : (post.poll ? '' : `<div class="post-card-image"></div>`);
 
   const content = post.content || '';
-  const truncated = content.length > 150 ? content.slice(0, 150) + '...' : content;
+  const truncatedRaw = content.length > 150 ? content.slice(0, 150) + '...' : content;
+  // linkifyMentions HTML-escapes for us
+  const truncated = linkifyMentions(truncatedRaw, post.mentions);
   const readMore = content.length > 150 ? ' <span class="read-more">read more...</span>' : '';
 
   const avatarHtml = avatarUrl
@@ -145,6 +148,16 @@ export function renderPostCard(post) {
     : `<div class="post-card-avatar"></div>`;
 
   const pollHtml = renderPollBlock(post);
+
+  // Bike tag chip (if post.bike is populated)
+  let bikeChipHtml = '';
+  if (post.bike && (post.bike._id || post.bike.id)) {
+    const b = post.bike;
+    const bikeOwnerId = author._id || '';
+    const bikeId = b._id || b.id;
+    const bikeLabel = b.nickname || `${b.brand || ''} ${b.model || ''}`.trim() || 'Bike';
+    bikeChipHtml = `<a class="post-bike-chip" href="#/garage/${bikeOwnerId}/${bikeId}">🏍 ${escapeAttr(bikeLabel)}</a>`;
+  }
 
   return `
     <div class="post-card-dark" data-post-id="${post._id}">
@@ -155,6 +168,7 @@ export function renderPostCard(post) {
         </a>
         <span class="post-card-time">&middot; ${time}</span>
       </div>
+      ${bikeChipHtml ? `<div class="post-bike-chip-row">${bikeChipHtml}</div>` : ''}
       ${imageHtml}
       ${pollHtml}
       <div class="post-card-actions">
@@ -169,7 +183,7 @@ export function renderPostCard(post) {
         </button>
       </div>
       <div class="post-card-likes">${formatCount(likesCount)} likes</div>
-      ${content ? `<div class="post-card-caption"><strong>${username}</strong> ${truncated}${readMore}</div>` : ''}
+      ${content ? `<div class="post-card-caption"><strong>${username}</strong> <span class="post-card-caption-text">${truncated}${readMore}</span></div>` : ''}
       ${commentsCount > 0 ? `<a href="#/posts/${post._id}" class="post-card-comments-link" style="text-decoration: none; color: #6b7280; cursor: pointer;">View all ${formatCount(commentsCount)} comments</a>` : ''}
     </div>
   `;

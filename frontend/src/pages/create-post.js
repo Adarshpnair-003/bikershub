@@ -4,9 +4,11 @@
  */
 
 import { api } from '../utils/api.js';
+import { bikeApi } from '../utils/bikeApi.js';
 import { navigate } from '../utils/router.js';
 import { getCurrentUser, isGuest } from '../utils/auth.js';
 import { renderTabBar } from '../components/tabbar.js';
+import { attachMentionAutocomplete } from '../components/mention-autocomplete.js';
 
 export function render() {
   return `
@@ -178,6 +180,36 @@ export function render() {
         display: inline-flex; align-items: center; gap: 6px;
         font-size: 13px; color: #F3F3F3; cursor: pointer; user-select: none;
       }
+
+      /* Bike tag picker */
+      .cp-bike-section { margin-top: 14px; }
+      .cp-bike-label {
+        font-size: 11px; color: rgba(243,243,243,0.5);
+        text-transform: uppercase; letter-spacing: 0.04em;
+        font-weight: 600; margin-bottom: 8px;
+      }
+      .cp-bike-row {
+        display: flex; gap: 8px; overflow-x: auto;
+        padding-bottom: 4px; -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+      .cp-bike-row::-webkit-scrollbar { display: none; }
+      .cp-bike-chip {
+        flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+        padding: 7px 12px; border-radius: 999px;
+        background: transparent; border: 1px solid #374151;
+        color: rgba(243,243,243,0.85);
+        font-family: 'Poppins', sans-serif; font-size: 12.5px; font-weight: 500;
+        cursor: pointer; white-space: nowrap;
+      }
+      .cp-bike-chip.selected {
+        background: rgba(229,57,53,0.15);
+        border-color: #E53935; color: #E53935;
+      }
+      .cp-bike-empty {
+        font-size: 12px; color: rgba(243,243,243,0.4);
+        font-style: italic; padding: 4px 0;
+      }
     </style>
     <div class="page-dark">
       <div class="app-header">
@@ -226,6 +258,13 @@ export function render() {
           </div>
         </div>
 
+        <div class="cp-bike-section" id="cp-bike-section">
+          <div class="cp-bike-label">Tag a bike (optional)</div>
+          <div class="cp-bike-row" id="cp-bike-row">
+            <span class="cp-bike-empty">Loading garage…</span>
+          </div>
+        </div>
+
         <button class="create-post-submit" id="create-post-btn">POST</button>
       </div>
 
@@ -241,6 +280,8 @@ export function mount() {
   const previewRow = document.getElementById('create-post-previews');
   const contentEl = document.getElementById('create-post-content');
   const submitBtn = document.getElementById('create-post-btn');
+
+  if (contentEl) attachMentionAutocomplete(contentEl);
 
   // Poll composer state
   const pollToggle = document.getElementById('cp-poll-toggle');
@@ -296,6 +337,41 @@ export function mount() {
       pollAddBtn.disabled = pollOptionLabels.length >= 4;
     });
   }
+
+  // Bike chip picker — fetch garage and render chips
+  const bikeRowEl = document.getElementById('cp-bike-row');
+  let selectedBikeId = null;
+  let userBikes = [];
+
+  function renderBikeChips() {
+    if (!bikeRowEl) return;
+    if (userBikes.length === 0) {
+      bikeRowEl.innerHTML = '<span class="cp-bike-empty">Add a bike to your garage to tag it here.</span>';
+      return;
+    }
+    bikeRowEl.innerHTML = userBikes.map((b) => {
+      const label = b.nickname || `${b.brand || ''} ${b.model || ''}`.trim() || 'Bike';
+      const sel = String(b._id) === String(selectedBikeId);
+      return `<button type="button" class="cp-bike-chip ${sel ? 'selected' : ''}" data-bike-id="${b._id}">🏍 ${label.replace(/[<>"&]/g, '')}</button>`;
+    }).join('');
+    bikeRowEl.querySelectorAll('.cp-bike-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const id = chip.dataset.bikeId;
+        selectedBikeId = String(id) === String(selectedBikeId) ? null : id;
+        renderBikeChips();
+      });
+    });
+  }
+
+  (async () => {
+    const me = getCurrentUser();
+    if (!me?.id) { renderBikeChips(); return; }
+    try {
+      const res = await bikeApi.listByUser(me.id);
+      userBikes = res?.success && Array.isArray(res.data) ? res.data : [];
+    } catch { userBikes = []; }
+    renderBikeChips();
+  })();
 
   let selectedFiles = [];
 
@@ -379,6 +455,9 @@ export function mount() {
         });
         if (pollPayload) {
           formData.append('poll', JSON.stringify(pollPayload));
+        }
+        if (selectedBikeId) {
+          formData.append('bike', selectedBikeId);
         }
 
         const res = await api.upload('/api/posts', formData);

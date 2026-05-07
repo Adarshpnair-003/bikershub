@@ -5,6 +5,7 @@
 import { bikeApi } from '../utils/bikeApi.js';
 import { navigate } from '../utils/router.js';
 import { getCurrentUser } from '../utils/auth.js';
+import { renderPostCard } from '../components/post-card.js';
 
 const BACK_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>`;
 
@@ -35,6 +36,10 @@ export function render() {
       .bd-btn:active { opacity: 0.7; }
 
       .bd-loading { padding: 40px 20px; text-align: center; color: rgba(243,243,243,0.5); }
+
+      .bd-posts { padding: 22px 0 8px; }
+      .bd-posts-title { padding: 0 20px 12px; font-size: 15px; font-weight: 700; color: #F3F3F3; letter-spacing: -0.2px; }
+      .bd-posts-empty { padding: 24px 20px; text-align: center; color: rgba(243,243,243,0.4); font-size: 13px; }
     </style>
 
     <div class="bd-wrap">
@@ -94,10 +99,16 @@ export function mount(ctx) {
           <button class="bd-btn danger" id="bd-delete">Delete</button>
         </div>
       ` : ''}
+      <section class="bd-posts">
+        <div class="bd-posts-title">Posts featuring this bike</div>
+        <div id="bd-posts-list"><div class="bd-posts-empty">Loading…</div></div>
+      </section>
     `;
     const content = document.getElementById('bd-content');
     content.className = '';
     content.innerHTML = html;
+
+    loadBikePosts(b._id);
 
     if (isOwner) {
       document.getElementById('bd-edit')?.addEventListener('click', () => navigate('/edit-bike/' + b._id));
@@ -118,6 +129,27 @@ export function mount(ctx) {
           alert('Network error.');
         }
       });
+    }
+  }
+
+  async function loadBikePosts(id) {
+    const list = document.getElementById('bd-posts-list');
+    if (!list) return;
+    try {
+      const res = await bikeApi.listPosts(id);
+      const posts = res?.success ? (res.data?.posts || []) : [];
+      if (posts.length === 0) {
+        list.innerHTML = '<div class="bd-posts-empty">No posts yet.</div>';
+        return;
+      }
+      list.innerHTML = posts.map((p) => renderPostCard(p)).join('');
+      list.querySelectorAll('.post-card-comments-link, .post-card-author-link').forEach((el) => {
+        el.addEventListener('click', (e) => {
+          // Let hash routing handle the navigation; nothing to do here.
+        });
+      });
+    } catch {
+      list.innerHTML = '<div class="bd-posts-empty">Failed to load posts.</div>';
     }
   }
 

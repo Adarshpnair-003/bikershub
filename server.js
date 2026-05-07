@@ -73,6 +73,7 @@ console.log("Routes initialized");
 /* ROUTES */
 app.use("/api/auth", authLimiter, require("./routes/authRoutes"));
 app.use("/api/bikes", require("./routes/bikeRoutes"));
+app.use("/api/stories", require("./routes/storyRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/posts", require("./routes/postRoutes"));
 app.use("/api/comments", require("./routes/commentRoutes"));

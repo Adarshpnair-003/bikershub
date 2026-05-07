@@ -145,6 +145,11 @@ exports.joinRide = async (req, res) => {
       });
     }
 
+    // 🏆 ACHIEVEMENT — first ride
+    require("../services/achievementService")
+      .checkRideMilestones(req.user.id, ride)
+      .catch(() => {});
+
     res.json({ msg: "Joined ride successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -275,6 +280,14 @@ exports.endRide = async (req, res) => {
     }
 
     await ride.save();
+
+    // 🏆 ACHIEVEMENT — distance milestones for every participant
+    const achSvc = require("../services/achievementService");
+    Promise.all(
+      (ride.participants || []).map((p) =>
+        achSvc.checkRideMilestones(p, ride).catch(() => {})
+      )
+    ).catch(() => {});
 
     res.json({
       distance: ride.totalDistance,

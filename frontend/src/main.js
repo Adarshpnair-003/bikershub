@@ -185,6 +185,8 @@ import { render as renderPostDetail, mount as mountPostDetail } from './pages/po
 import { render as renderAddBike, mount as mountAddBike, cleanup as cleanupAddBike } from './pages/add-bike.js';
 import { render as renderEditBike, mount as mountEditBike, cleanup as cleanupEditBike } from './pages/edit-bike.js';
 import { render as renderBikeDetail, mount as mountBikeDetail, cleanup as cleanupBikeDetail } from './pages/bike-detail.js';
+import { render as renderCreateStory, mount as mountCreateStory, cleanup as cleanupCreateStory } from './pages/create-story.js';
+import { render as renderStoryViewer, mount as mountStoryViewer, cleanup as cleanupStoryViewer } from './pages/story-viewer.js';
 
 // ============================================
 // ROUTE REGISTRATION
@@ -336,6 +338,21 @@ registerRoute('/posts/:id', (context) => {
   showPage(
     () => renderPostDetail(context),
     () => mountPostDetail(context)
+  );
+});
+
+registerRoute('/create-story', () => {
+  if (!requireAuth()) return;
+  showPage(renderCreateStory, mountCreateStory, {}, cleanupCreateStory);
+});
+
+registerRoute('/stories/:userId', (context) => {
+  if (!requireAuth()) return;
+  showPage(
+    () => renderStoryViewer(context),
+    () => mountStoryViewer(context),
+    {},
+    cleanupStoryViewer
   );
 });
 

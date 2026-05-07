@@ -23,4 +23,7 @@ export const bikeApi = {
   remove(bikeId) {
     return api.delete('/api/bikes/' + bikeId);
   },
+  listPosts(bikeId, { page = 1, limit = 20 } = {}) {
+    return api.get(`/api/bikes/${bikeId}/posts?page=${page}&limit=${limit}`);
+  },
 };

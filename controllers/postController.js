@@ -1,9 +1,12 @@
 const Post = require("../models/Post");
 const User = require("../models/User");
+const Bike = require("../models/Bike");
 const Notification = require("../models/Notification");
 const { getIO } = require("../socket/socket");
 const cloudinary = require("../config/cloudinary"); // ✅ ADD THIS
 const fs = require("fs/promises");
+const { resolveMentionedUserIds } = require("../utils/mentions");
+const achievementService = require("../services/achievementService");
 
 const cleanupLocalFiles = async files => {
   if (!files || files.length === 0) return;
@@ -105,16 +108,53 @@ exports.createPost = async (req, res) => {
       };
     }
 
+    // 🏍 OPTIONAL BIKE TAG — validate ownership
+    let bikeId = null;
+    if (body.bike) {
+      const bikeDoc = await Bike.findById(body.bike).select("owner").lean();
+      if (!bikeDoc) {
+        return res.status(400).json({ success: false, error: { code: "INVALID_BIKE", message: "Bike not found" } });
+      }
+      if (String(bikeDoc.owner) !== String(req.user.id)) {
+        return res.status(403).json({ success: false, error: { code: "FORBIDDEN", message: "You can only tag your own bikes" } });
+      }
+      bikeId = bikeDoc._id;
+    }
+
+    // 🏷 PARSE @MENTIONS
+    const mentionedUserIds = content ? await resolveMentionedUserIds(content, req.user.id) : [];
+
     // ✅ CREATE POST
     const post = await Post.create({
       author: req.user.id,
       content,
       club: body.club || null,
+      bike: bikeId,
       media, // 👈 NEW FIELD
+      mentions: mentionedUserIds,
       ...(poll ? { poll } : {})
     });
 
-    const populatedPost = await post.populate("author", "username email");
+    // 🔔 NOTIFICATIONS for mentions (non-blocking, best-effort)
+    if (mentionedUserIds.length > 0) {
+      Notification.insertMany(
+        mentionedUserIds.map((uid) => ({
+          recipient: uid,
+          sender: req.user.id,
+          type: "mention",
+          post: post._id
+        }))
+      ).catch((err) => console.warn("[mention notify] insert failed:", err.message));
+    }
+
+    const populatedPost = await post.populate([
+      { path: "author", select: "username email profilePic" },
+      { path: "bike", select: "brand model year nickname photo" },
+      { path: "mentions", select: "username" }
+    ]);
+
+    // 🏆 ACHIEVEMENT CHECK (best-effort, non-blocking)
+    achievementService.checkFirstPost(req.user.id).catch(() => {});
 
     // 🔥 REAL-TIME EVENT
     const io = getIO();
@@ -137,7 +177,9 @@ exports.createPost = async (req, res) => {
 exports.getAllPosts = async (req, res) => {
   try {
     const posts = await Post.find()
-      .populate("author", "username email")
+      .populate("author", "username email profilePic")
+      .populate("bike", "brand model year nickname photo")
+      .populate("mentions", "username")
       .sort({ createdAt: -1 });
 
     res.json({ success: true, data: posts });
@@ -153,7 +195,9 @@ exports.getPostById = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id)
       .populate("author", "username profilePic email")
-      .populate("club", "name");
+      .populate("club", "name")
+      .populate("bike", "brand model year nickname photo")
+      .populate("mentions", "username");
     if (!post) return res.status(404).json({ success: false, error: { message: "Post not found" } });
     res.json({ success: true, data: post });
   } catch (error) {
@@ -233,7 +277,9 @@ exports.getSmartFeed = async (req, res) => {
     const posts = await Post.find({
       author: { $in: usersForFeed }
     })
-      .populate("author", "username")
+      .populate("author", "username profilePic")
+      .populate("bike", "brand model year nickname photo")
+      .populate("mentions", "username")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);

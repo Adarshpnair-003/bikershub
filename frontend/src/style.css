@@ -569,6 +569,106 @@ input, textarea {
   background: #1f2937;
 }
 
+/* Story tray (home top) */
+.story-tray { padding: 12px 0 8px; border-bottom: 1px solid rgba(243,243,243,0.06); }
+.story-tray-row { display: flex; gap: 14px; padding: 0 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.story-tray-row::-webkit-scrollbar { display: none; }
+.story-tray-loading { padding: 14px 16px; color: rgba(243,243,243,0.4); font-size: 13px; }
+.story-item {
+  flex-shrink: 0; background: transparent; border: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 0; font-family: 'Poppins', sans-serif;
+}
+.story-ring {
+  position: relative;
+  width: 64px; height: 64px; border-radius: 50%; overflow: hidden;
+  background: #1E1E1E;
+  padding: 2px;
+  background-clip: content-box;
+  display: flex; align-items: center; justify-content: center;
+  color: #F3F3F3;
+}
+.story-ring.fresh { background: linear-gradient(135deg, #E53935 0%, #ff6b6b 100%); }
+.story-ring.viewed { background: rgba(243,243,243,0.15); }
+.story-ring.compose { background: rgba(243,243,243,0.1); }
+.story-ring img, .story-ring-fallback {
+  width: 100%; height: 100%; border-radius: 50%; background: #343434;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700; color: #F3F3F3; object-fit: cover;
+}
+.story-ring-plus {
+  position: absolute; right: 0; bottom: 0;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #E53935; color: #fff; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid #0C0C0C; font-size: 14px; line-height: 1;
+}
+.story-name {
+  font-size: 11px; color: rgba(243,243,243,0.7); max-width: 70px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* @-mention links inside post/comment bodies */
+.mention-link {
+  color: #E53935;
+  text-decoration: none;
+  font-weight: 600;
+}
+.mention-link:active { opacity: 0.7; }
+
+/* Mention autocomplete dropdown (shared across compose surfaces) */
+.mention-autocomplete {
+  position: absolute;
+  z-index: 50;
+  background: #1E1E1E;
+  border: 1px solid rgba(243,243,243,0.1);
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+  max-height: 200px;
+  overflow-y: auto;
+  min-width: 180px;
+  font-family: 'Poppins', sans-serif;
+  display: none;
+}
+.mention-autocomplete.open { display: block; }
+.mention-item {
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #F3F3F3;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mention-item:hover, .mention-item.active { background: rgba(229,57,53,0.12); }
+.mention-item-avatar {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #343434; font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.mention-item-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.mention-item-name { font-weight: 500; }
+
+/* Bike tag chip on a post */
+.post-bike-chip-row {
+  padding: 4px 20px 6px;
+}
+.post-bike-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(229,57,53,0.10);
+  color: #E53935;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid rgba(229,57,53,0.25);
+}
+.post-bike-chip:active { opacity: 0.75; }
+
 /* Poll block (used by post-card and post-detail) */
 .poll-block {
   padding: 12px 20px 4px;

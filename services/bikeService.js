@@ -42,6 +42,8 @@ exports.createBike = async (userId, fields, photoFile) => {
 
   try {
     const bike = await Bike.create({ owner: userId, ...fields, photo });
+    // 🏆 ACHIEVEMENT — bike collector (best-effort, non-blocking)
+    require("./achievementService").checkBikeCollector(userId).catch(() => {});
     return bike;
   } catch (err) {
     // Mongo write failed after Cloudinary upload — clean up the orphan.

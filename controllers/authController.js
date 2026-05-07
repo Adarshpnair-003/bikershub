@@ -79,6 +79,9 @@ exports.register = async (req, res) => {
       password  // hashed by User pre-save hook
     });
 
+    // 🏆 ACHIEVEMENT — Early Bird (first 100 users)
+    require("../services/achievementService").checkEarlyBird(newUser._id).catch(() => {});
+
     res.status(201).json({
       success: true,
       data: buildAuthResponse(newUser),

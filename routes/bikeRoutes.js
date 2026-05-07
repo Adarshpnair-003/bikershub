@@ -25,6 +25,9 @@ router.get("/user/:userId", optionalAuth, bikeController.listByUser);
 /* SINGLE BIKE */
 router.get("/:id", optionalAuth, bikeController.getById);
 
+/* LIST POSTS TAGGED WITH THIS BIKE */
+router.get("/:id/posts", optionalAuth, bikeController.listPosts);
+
 /* UPDATE BIKE (multipart) */
 router.put(
   "/:id",

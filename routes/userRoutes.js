@@ -39,4 +39,20 @@ router.put(
 	userController.unfollowUser
 );
 
+/* GET USER ACHIEVEMENTS */
+router.get(
+	"/:id/achievements",
+	[param("id").isMongoId().withMessage("Valid user id is required")],
+	validateRequest,
+	async (req, res) => {
+		try {
+			const achievementService = require("../services/achievementService");
+			const list = await achievementService.listForUser(req.params.id);
+			res.json({ success: true, data: list });
+		} catch (err) {
+			res.status(500).json({ success: false, error: { message: err.message } });
+		}
+	}
+);
+
 module.exports = router;

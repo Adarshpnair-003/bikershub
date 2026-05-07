@@ -19,6 +19,12 @@ const postSchema = new mongoose.Schema(
       default: null
     },
 
+    bike: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Bike",
+      default: null
+    },
+
     // ✅ ADD THIS BLOCK
     media: [
       {
@@ -35,6 +41,13 @@ const postSchema = new mongoose.Schema(
     ],
 
     likes: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+      }
+    ],
+
+    mentions: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User"

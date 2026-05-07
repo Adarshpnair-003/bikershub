@@ -9,6 +9,7 @@ import { getCurrentUser } from '../utils/auth.js';
 import { renderTabBar } from '../components/tabbar.js';
 import { renderPostCard, formatCount, renderPollBlock } from '../components/post-card.js';
 import { openComments } from '../components/comments.js';
+import { renderStoryTray, mountStoryTray } from '../components/story-tray.js';
 
 const CREATE_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
 const BELL_ICON = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f9fafb" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`;
@@ -104,6 +105,8 @@ export function render() {
         </div>
       </div>
 
+      ${renderStoryTray()}
+
       <div id="post-feed">
         <div class="post-card-dark" style="padding:20px;text-align:center;color:#6b7280;">Loading posts...</div>
       </div>
@@ -116,6 +119,10 @@ export function render() {
 export function mount() {
   loadPosts();
   loadBadges();
+  mountStoryTray({
+    onCompose: () => navigate('/create-story'),
+    onOpen: (userId) => navigate(`/stories/${userId}`)
+  });
 
   const createBtn = document.getElementById('home-create-btn');
   if (createBtn) {

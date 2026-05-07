@@ -1,4 +1,5 @@
 const bikeService = require("../services/bikeService");
+const Post = require("../models/Post");
 const catchAsync = require("../utils/catchAsync");
 const apiResponse = require("../utils/apiResponse");
 
@@ -30,4 +31,24 @@ exports.setPrimary = catchAsync(async (req, res) => {
 exports.remove = catchAsync(async (req, res) => {
   await bikeService.deleteBike(req.user.id, req.params.id);
   res.json(apiResponse.success(null, "Bike deleted"));
+});
+
+/* LIST POSTS TAGGED WITH THIS BIKE — paginated */
+exports.listPosts = catchAsync(async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
+  const skip = (page - 1) * limit;
+
+  const [posts, total] = await Promise.all([
+    Post.find({ bike: req.params.id })
+      .populate("author", "username profilePic")
+      .populate("bike", "brand model year nickname photo")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Post.countDocuments({ bike: req.params.id })
+  ]);
+
+  res.json(apiResponse.success({ posts, page, limit, total, totalPages: Math.ceil(total / limit) }));
 });

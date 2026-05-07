@@ -185,6 +185,18 @@ export function render() {
           100% { background-position: -200% 0; }
         }
 
+        /* Achievements row */
+        .pf-ach-section { padding: 16px 16px 0; }
+        .pf-ach-title { font-size: 13px; font-weight: 600; color: rgba(243,243,243,0.6); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; }
+        .pf-ach-row { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 6px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+        .pf-ach-row::-webkit-scrollbar { display: none; }
+        .pf-ach-tile { flex-shrink: 0; width: 78px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .pf-ach-icon { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 26px; background: #1E1E1E; border: 2px solid rgba(243,243,243,0.08); }
+        .pf-ach-tile.earned .pf-ach-icon { background: linear-gradient(145deg, #E53935 0%, #b71c1c 100%); border-color: #E53935; box-shadow: 0 4px 12px rgba(229,57,53,0.3); }
+        .pf-ach-tile.locked .pf-ach-icon { filter: grayscale(1) brightness(0.4); }
+        .pf-ach-name { font-size: 10.5px; color: rgba(243,243,243,0.7); text-align: center; line-height: 1.1; }
+        .pf-ach-tile.earned .pf-ach-name { color: #F3F3F3; font-weight: 600; }
+
         /* Garage tab strip */
         .pf-tabs { display: flex; border-top: 1px solid rgba(243,243,243,0.06); border-bottom: 1px solid rgba(243,243,243,0.06); }
         .pf-tab { flex: 1; background: transparent; border: none; color: rgba(243,243,243,0.5); font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 600; padding: 12px 0; cursor: pointer; position: relative; }
@@ -333,6 +345,11 @@ async function loadProfile() {
       <button class="pf-btn danger" id="profile-logout-btn">Log Out</button>
     </div>
 
+    <section class="pf-ach-section" id="pf-ach-section" style="display:none;">
+      <div class="pf-ach-title">Achievements</div>
+      <div class="pf-ach-row" id="pf-ach-row"></div>
+    </section>
+
     <div class="pf-tabs">
       <button class="pf-tab active" id="pf-tab-posts" data-tab="posts">Posts</button>
       <button class="pf-tab" id="pf-tab-garage" data-tab="garage">Garage</button>
@@ -360,7 +377,34 @@ async function loadProfile() {
   if (tabGarage) tabGarage.addEventListener('click', () => switchTab('garage'));
   if (fab) fab.addEventListener('click', () => navigate('/add-bike'));
 
+  // Load achievements (best-effort)
+  loadAchievements();
+
   renderActiveTab();
+
+  async function loadAchievements() {
+    if (!userData?._id) return;
+    try {
+      const res = await api.get(`/api/users/${userData._id}/achievements`);
+      const list = res?.success && Array.isArray(res.data) ? res.data : [];
+      const earned = list.filter((a) => a.earned);
+      if (earned.length === 0) return; // hide section when nothing earned
+      const section = document.getElementById('pf-ach-section');
+      const row = document.getElementById('pf-ach-row');
+      if (!section || !row) return;
+      // Show earned first, then a couple of locked previews
+      const display = [...earned, ...list.filter((a) => !a.earned).slice(0, Math.max(0, 4 - earned.length))];
+      row.innerHTML = display.map((a) => `
+        <div class="pf-ach-tile ${a.earned ? 'earned' : 'locked'}" title="${escapeHtml(a.label)}">
+          <div class="pf-ach-icon">${a.emoji || '🏆'}</div>
+          <div class="pf-ach-name">${escapeHtml(a.label)}</div>
+        </div>
+      `).join('');
+      section.style.display = '';
+    } catch {
+      // silently fail
+    }
+  }
 
   function switchTab(tab) {
     activeTab = tab;

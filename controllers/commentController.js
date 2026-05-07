@@ -2,6 +2,7 @@ const Comment = require("../models/Comment");
 const Post = require("../models/Post");
 const Notification = require("../models/Notification");
 const { getIO } = require("../socket/socket");
+const { resolveMentionedUserIds } = require("../utils/mentions");
 /*
 CREATE COMMENT OR REPLY
 */
@@ -16,11 +17,15 @@ exports.createComment = async (req, res) => {
     if (!post)
       return res.status(404).json({ msg: "Post not found" });
 
+    // 🏷 PARSE @MENTIONS
+    const mentionedUserIds = await resolveMentionedUserIds(content || "", req.user.id);
+
     const comment = await Comment.create({
       content,
       author: req.user.id,
       post: postId,
-      parentComment: parentComment || null
+      parentComment: parentComment || null,
+      mentions: mentionedUserIds
     });
     /* REALTIME COMMENT */
 const io = getIO();
@@ -28,6 +33,21 @@ const io = getIO();
 const populatedComment = await comment.populate("author", "username");
 
 io.to(`post:${postId}`).emit("newComment", populatedComment);
+
+    // 🔔 NOTIFICATIONS for mentions (skip if same user is already getting a comment-notif)
+    if (mentionedUserIds.length > 0) {
+      const postOwnerId = post.author.toString();
+      Notification.insertMany(
+        mentionedUserIds
+          .filter((uid) => String(uid) !== postOwnerId) // post owner already gets a "comment" notif
+          .map((uid) => ({
+            recipient: uid,
+            sender: req.user.id,
+            type: "mention",
+            post: postId
+          }))
+      ).catch((err) => console.warn("[mention notify] insert failed:", err.message));
+    }
 
     await Post.findByIdAndUpdate(postId, {
       $inc: { commentsCount: 1 }

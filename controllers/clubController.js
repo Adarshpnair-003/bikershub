@@ -67,6 +67,9 @@ exports.requestJoinClub = async (req, res) => {
       club.members.push(req.user.id);
       await club.save();
 
+      // 🏆 ACHIEVEMENT — networker
+      require("../services/achievementService").checkClubsJoined(req.user.id).catch(() => {});
+
       return res.json({ msg: "Joined public club" });
     }
 
@@ -135,6 +138,9 @@ exports.approveRequest = async (req, res) => {
       type: "club_approved",
       club: club._id
     });
+
+    // 🏆 ACHIEVEMENT — newly-approved member may now hit JOIN_3_CLUBS
+    require("../services/achievementService").checkClubsJoined(req.params.userId).catch(() => {});
 
     res.json({ msg: "User approved" });
 

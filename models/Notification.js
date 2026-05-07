@@ -22,8 +22,10 @@ const NotificationSchema = new mongoose.Schema(
       "club_approved",
       "club_rejected",
       "ride_invite",
-      "ride_join",  
-      "follow"
+      "ride_join",
+      "follow",
+      "mention",
+      "achievement"
     ]
   },
 
