@@ -1,0 +1,22 @@
+{
+  "watch": [
+    "server.js",
+    "config",
+    "controllers",
+    "middleware",
+    "models",
+    "routes",
+    "socket",
+    "utils",
+    "scripts"
+  ],
+  "ext": "js,json",
+  "ignore": [
+    "frontend/**",
+    "docs/**",
+    "node_modules/**",
+    "dist/**",
+    "**/*.log"
+  ],
+  "delay": "200"
+}
